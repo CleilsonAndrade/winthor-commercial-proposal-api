@@ -92,64 +92,6 @@ describe('AppController (e2e)', () => {
     });
   });
 
-  it('/auth/verify (POST) autentica credencial válida', async () => {
-    authenticate.mockResolvedValue({
-      subject: 'winthor:123',
-      registration: 123,
-      username: 'USUARIO.BD',
-      displayName: 'USUARIO_TESTE',
-      roles: ['16', 'DESENVOLVIMENTO'],
-      status: 'ativo',
-      provider: 'winthor',
-    });
-
-    const httpServer = app.getHttpServer() as App;
-
-    await request(httpServer)
-      .post('/auth/verify')
-      .send({
-        username: 'USUARIO.BD',
-        password: 'SENHA_TESTE',
-      })
-      .expect(200)
-      .expect({
-        authenticated: true,
-        user: {
-          registration: 123,
-          username: 'USUARIO.BD',
-          displayName: 'USUARIO_TESTE',
-          roles: ['16', 'DESENVOLVIMENTO'],
-        },
-      });
-  });
-
-  it('/auth/verify (POST) retorna 401 para credencial inválida', async () => {
-    authenticate.mockResolvedValue(null);
-
-    const httpServer = app.getHttpServer() as App;
-
-    await request(httpServer)
-      .post('/auth/verify')
-      .send({
-        username: 'USUARIO.BD',
-        password: 'ERRADA',
-      })
-      .expect(401);
-  });
-
-  it('/auth/verify (POST) retorna 400 para body inválido', async () => {
-    const httpServer = app.getHttpServer() as App;
-
-    await request(httpServer)
-      .post('/auth/verify')
-      .send({
-        username: '',
-      })
-      .expect(400);
-
-    expect(authenticate).not.toHaveBeenCalled();
-  });
-
   it('/auth/login (POST) emite JWT para credencial válida', async () => {
     authenticate.mockResolvedValue({
       subject: 'winthor:123',
@@ -287,5 +229,19 @@ describe('AppController (e2e)', () => {
       .get('/auth/me')
       .set('Authorization', `Bearer ${tamperedToken}`)
       .expect(401);
+  });
+
+  it('/auth/verify (POST) não existe mais', async () => {
+    const httpServer = app.getHttpServer() as App;
+
+    await request(httpServer)
+      .post('/auth/verify')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(404);
+
+    expect(authenticate).not.toHaveBeenCalled();
   });
 });

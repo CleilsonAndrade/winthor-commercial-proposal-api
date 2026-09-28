@@ -38,22 +38,6 @@ describe('AuthService', () => {
     };
   };
 
-  it('retorna usuário sanitizado na verificação válida', async () => {
-    const { service, authenticate } = createSubject();
-
-    authenticate.mockResolvedValue(activePrincipal);
-
-    await expect(service.verify('USUARIO.BD', 'SENHA_TESTE')).resolves.toEqual({
-      authenticated: true,
-      user: {
-        registration: 123,
-        username: 'USUARIO.BD',
-        displayName: 'USUARIO_TESTE',
-        roles: ['16', 'DESENVOLVIMENTO'],
-      },
-    });
-  });
-
   it('emite token no login válido', async () => {
     const { service, authenticate, issue } = createSubject();
 
@@ -63,6 +47,11 @@ describe('AuthService', () => {
     await expect(service.login('USUARIO.BD', 'SENHA_TESTE')).resolves.toEqual({
       access_token: 'JWT_TESTE',
       userName: 'USUARIO_TESTE',
+    });
+
+    expect(authenticate).toHaveBeenCalledWith({
+      username: 'USUARIO.BD',
+      password: 'SENHA_TESTE',
     });
 
     expect(issue).toHaveBeenCalledWith(activePrincipal);

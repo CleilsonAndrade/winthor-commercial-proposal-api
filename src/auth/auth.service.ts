@@ -11,16 +11,6 @@ import type { HumanAuthProvider } from './interfaces/human-auth-provider.interfa
 import type { TokenIssuer } from './interfaces/token-issuer.interface';
 import type { WinthorCredentials } from './interfaces/winthor-credentials.interface';
 
-export interface AuthVerificationResult {
-  authenticated: true;
-  user: {
-    registration: number;
-    username: string;
-    displayName: string;
-    roles: string[];
-  };
-}
-
 export interface LoginResult {
   access_token: string;
   userName: string;
@@ -36,30 +26,6 @@ export class AuthService {
     @Inject(TOKEN_ISSUER)
     private readonly tokenIssuer: TokenIssuer,
   ) {}
-
-  async verify(
-    username: string,
-    password: string,
-  ): Promise<AuthVerificationResult> {
-    try {
-      const principal = await this.authenticateActive(username, password);
-
-      return {
-        authenticated: true,
-        user: {
-          registration: principal.registration,
-          username: principal.username,
-          displayName: principal.displayName,
-          roles: principal.roles,
-        },
-      };
-    } catch (error: unknown) {
-      this.handleAuthenticationError(
-        error,
-        'Could not verify credentials due to an internal error.',
-      );
-    }
-  }
 
   async login(username: string, password: string): Promise<LoginResult> {
     try {

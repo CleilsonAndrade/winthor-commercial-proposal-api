@@ -8,13 +8,8 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import {
-  AuthService,
-  AuthVerificationResult,
-  LoginResult,
-} from './auth.service';
+import { AuthService, LoginResult } from './auth.service';
 import { WinthorLoginDto } from './dto/winthor-login.dto';
-import { WinthorVerifyDto } from './dto/winthor-verify.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type {
   RequestWithUser,
@@ -24,12 +19,6 @@ import type {
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
-
-  @Post('verify')
-  @HttpCode(HttpStatus.OK)
-  verify(@Body() body: WinthorVerifyDto): Promise<AuthVerificationResult> {
-    return this.authService.verify(body.username, body.password);
-  }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
