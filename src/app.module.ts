@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
+import { AuthModule } from './auth/auth.module';
 import { AppService } from './app.service';
 import { OracleModule } from './infrastructure/oracle/oracle.module';
 
@@ -10,6 +11,7 @@ import { OracleModule } from './infrastructure/oracle/oracle.module';
       isGlobal: true,
     }),
     OracleModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

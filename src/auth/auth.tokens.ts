@@ -1,0 +1,1 @@
+export const HUMAN_AUTH_PROVIDER = Symbol('HUMAN_AUTH_PROVIDER');

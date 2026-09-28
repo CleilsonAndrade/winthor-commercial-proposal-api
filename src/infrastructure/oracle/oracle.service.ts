@@ -5,7 +5,11 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import oracledb, { type Pool } from 'oracledb';
+import oracledb, {
+  type BindParameters,
+  type ExecuteOptions,
+  type Pool,
+} from 'oracledb';
 
 interface OracleHealthRow {
   TESTE: number;
@@ -60,41 +64,49 @@ export class OracleService implements OnModuleInit, OnApplicationShutdown {
     );
   }
 
-  async health(): Promise<OracleHealthResult> {
+  async query<T>(
+    sql: string,
+    binds: BindParameters = [],
+    options: ExecuteOptions = {},
+  ): Promise<T[]> {
     const pool = this.getPool();
     const connection = await pool.getConnection();
 
     try {
-      const result = await connection.execute(
-        `SELECT
-           1 AS TESTE,
-           SYS_CONTEXT('USERENV', 'DB_NAME') AS BANCO,
-           SYS_CONTEXT('USERENV', 'SESSION_USER') AS USUARIO
-         FROM DUAL`,
-        [],
-        {
-          outFormat: oracledb.OUT_FORMAT_OBJECT,
-        },
-      );
+      const result = await connection.execute<T>(sql, binds, {
+        outFormat: oracledb.OUT_FORMAT_OBJECT,
+        ...options,
+      });
 
-      const rows = result.rows as OracleHealthRow[] | undefined;
-      const row = rows?.[0];
-
-      if (!row) {
-        throw new Error('Oracle não retornou resultado no health check');
-      }
-
-      return {
-        status: 'ok',
-        driverVersion: oracledb.versionString,
-        driverMode: oracledb.thin ? 'thin' : 'thick',
-        database: row.BANCO,
-        user: row.USUARIO,
-        test: row.TESTE,
-      };
+      return result.rows ?? [];
     } finally {
       await connection.close();
     }
+  }
+
+  async health(): Promise<OracleHealthResult> {
+    const rows = await this.query<OracleHealthRow>(
+      `SELECT
+         1 AS TESTE,
+         SYS_CONTEXT('USERENV', 'DB_NAME') AS BANCO,
+         SYS_CONTEXT('USERENV', 'SESSION_USER') AS USUARIO
+       FROM DUAL`,
+    );
+
+    const row = rows[0];
+
+    if (!row) {
+      throw new Error('Oracle não retornou resultado no health check');
+    }
+
+    return {
+      status: 'ok',
+      driverVersion: oracledb.versionString,
+      driverMode: oracledb.thin ? 'thin' : 'thick',
+      database: row.BANCO,
+      user: row.USUARIO,
+      test: row.TESTE,
+    };
   }
 
   async onApplicationShutdown(): Promise<void> {
