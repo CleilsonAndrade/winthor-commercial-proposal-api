@@ -59,8 +59,7 @@ export class OracleService implements OnModuleInit, OnApplicationShutdown {
     });
 
     this.logger.log(
-      `Pool Oracle iniciado em ${host}:${port}/${serviceName} ` +
-        `(${oracledb.thin ? 'Thin' : 'Thick'})`,
+      `Pool Oracle iniciado (${oracledb.thin ? 'Thin' : 'Thick'})`,
     );
   }
 
