@@ -1,9 +1,11 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { DepartmentFilterQueryDto } from './dto/department-filter-query.dto';
+import { ParentClientFilterQueryDto } from './dto/parent-client-filter-query.dto';
 import { PlazaFilterQueryDto } from './dto/plaza-filter-query.dto';
 import { SectionFilterQueryDto } from './dto/section-filter-query.dto';
 import { DepartmentOption } from './interfaces/department-option.interface';
+import { ParentClientOption } from './interfaces/parent-client-option.interface';
 import { PlazaOption } from './interfaces/plaza-option.interface';
 import { SectionOption } from './interfaces/section-option.interface';
 import { CommercialFilterService } from './services/commercial-filter.service';
@@ -25,6 +27,13 @@ export class CommercialFilterController {
     @Query() query: DepartmentFilterQueryDto,
   ): Promise<DepartmentOption[]> {
     return this.commercialFilterService.findDepartments(query.search);
+  }
+
+  @Get('parent-clients')
+  findParentClients(
+    @Query() query: ParentClientFilterQueryDto,
+  ): Promise<ParentClientOption[]> {
+    return this.commercialFilterService.findParentClients(query.search);
   }
 
   @Get('sections')

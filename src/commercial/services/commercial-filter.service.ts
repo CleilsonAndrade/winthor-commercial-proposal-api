@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OracleService } from '../../infrastructure/oracle/oracle.service';
 import { DepartmentOption } from '../interfaces/department-option.interface';
+import { ParentClientOption } from '../interfaces/parent-client-option.interface';
 import { PlazaOption } from '../interfaces/plaza-option.interface';
 import { SectionOption } from '../interfaces/section-option.interface';
 
@@ -24,6 +25,14 @@ interface SectionRow {
   NAME: string;
   DEPARTMENT_CODE: number | null;
   DEPARTMENT_NAME: string | null;
+}
+
+interface ParentClientRow {
+  CODE: number;
+  NAME: string;
+  TRADE_NAME: string | null;
+  DOCUMENT: string | null;
+  STORE_COUNT: number;
 }
 
 @Injectable()
@@ -103,6 +112,58 @@ export class CommercialFilterService {
       name: row.NAME,
       departmentCode: row.DEPARTMENT_CODE,
       departmentName: row.DEPARTMENT_NAME,
+    }));
+  }
+
+  async findParentClients(search?: string): Promise<ParentClientOption[]> {
+    const normalizedSearch = search?.trim() || null;
+
+    const rows = await this.oracleService.query<ParentClientRow>(
+      `WITH NETWORK AS (
+         SELECT
+           NVL(F.CODCLIPRINC, F.CODCLI) AS PARENT_CODE,
+           COUNT(*) AS STORE_COUNT,
+           SUM(
+             CASE
+               WHEN F.CODCLI <> NVL(F.CODCLIPRINC, F.CODCLI)
+               THEN 1
+               ELSE 0
+             END
+           ) AS CHILD_COUNT
+         FROM PCCLIENT F
+         WHERE F.DTEXCLUSAO IS NULL
+         GROUP BY NVL(F.CODCLIPRINC, F.CODCLI)
+       )
+       SELECT
+         CL.CODCLI AS CODE,
+         CL.CLIENTE AS NAME,
+         CL.FANTASIA AS TRADE_NAME,
+         CL.CGCENT AS DOCUMENT,
+         N.STORE_COUNT
+       FROM PCCLIENT CL
+       JOIN NETWORK N
+         ON N.PARENT_CODE = CL.CODCLI
+        AND N.CHILD_COUNT > 0
+       WHERE CL.DTEXCLUSAO IS NULL
+         AND (
+           :search IS NULL
+           OR UPPER(NVL(CL.CLIENTE, '-'))
+             LIKE '%' || UPPER(:search) || '%'
+         )
+       ORDER BY
+         CL.CLIENTE,
+         CL.CODCLI`,
+      {
+        search: normalizedSearch,
+      },
+    );
+
+    return rows.map((row) => ({
+      code: row.CODE,
+      name: row.NAME,
+      tradeName: row.TRADE_NAME,
+      document: row.DOCUMENT,
+      storeCount: row.STORE_COUNT,
     }));
   }
 

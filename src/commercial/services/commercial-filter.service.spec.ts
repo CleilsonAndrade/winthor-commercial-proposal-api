@@ -199,4 +199,63 @@ describe('CommercialFilterService', () => {
       search: null,
     });
   });
+
+  it('consulta somente clientes principais com lojas vinculadas', async () => {
+    const { service, query } = createSubject();
+
+    query.mockResolvedValue([
+      {
+        CODE: 100,
+        NAME: 'REDE TESTE',
+        TRADE_NAME: 'REDE TESTE LTDA',
+        DOCUMENT: '12345678000199',
+        STORE_COUNT: 4,
+      },
+    ]);
+
+    await expect(service.findParentClients('rede')).resolves.toEqual([
+      {
+        code: 100,
+        name: 'REDE TESTE',
+        tradeName: 'REDE TESTE LTDA',
+        document: '12345678000199',
+        storeCount: 4,
+      },
+    ]);
+
+    const [sql, binds] = query.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+
+    expect(sql).toContain('WITH NETWORK AS');
+    expect(sql).toContain('FROM PCCLIENT F');
+    expect(sql).toContain('F.DTEXCLUSAO IS NULL');
+    expect(sql).toContain('GROUP BY NVL(F.CODCLIPRINC, F.CODCLI)');
+    expect(sql).toContain('FROM PCCLIENT CL');
+    expect(sql).toContain('N.PARENT_CODE = CL.CODCLI');
+    expect(sql).toContain('N.CHILD_COUNT > 0');
+    expect(sql).toContain('CL.DTEXCLUSAO IS NULL');
+    expect(sql).toContain("LIKE '%' || UPPER(:search) || '%'");
+    expect(sql).toContain('CL.CLIENTE,');
+    expect(sql).toContain('CL.CODCLI');
+
+    expect(binds).toEqual({
+      search: 'rede',
+    });
+  });
+
+  it('normaliza pesquisa de cliente principal em branco para null', async () => {
+    const { service, query } = createSubject();
+
+    query.mockResolvedValue([]);
+
+    await expect(service.findParentClients('   ')).resolves.toEqual([]);
+
+    const [, binds] = query.mock.calls[0] as [string, Record<string, unknown>];
+
+    expect(binds).toEqual({
+      search: null,
+    });
+  });
 });

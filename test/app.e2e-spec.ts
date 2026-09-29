@@ -619,6 +619,125 @@ describe('AppController (e2e)', () => {
     });
   });
 
+  it('/commercial/filters/parent-clients (GET) retorna 401 sem JWT', async () => {
+    const httpServer = app.getHttpServer() as App;
+
+    await request(httpServer)
+      .get('/commercial/filters/parent-clients')
+      .expect(401);
+
+    expect(oracleQuery).not.toHaveBeenCalled();
+  });
+
+  it('/commercial/filters/parent-clients (GET) retorna clientes principais para JWT válido', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    oracleQuery.mockResolvedValue([
+      {
+        CODE: 100,
+        NAME: 'REDE TESTE',
+        TRADE_NAME: 'REDE TESTE LTDA',
+        DOCUMENT: '12345678000199',
+        STORE_COUNT: 4,
+      },
+    ]);
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .get('/commercial/filters/parent-clients')
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .expect(200)
+      .expect([
+        {
+          code: 100,
+          name: 'REDE TESTE',
+          tradeName: 'REDE TESTE LTDA',
+          document: '12345678000199',
+          storeCount: 4,
+        },
+      ]);
+  });
+
+  it('/commercial/filters/parent-clients (GET) encaminha pesquisa textual', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    oracleQuery.mockResolvedValue([
+      {
+        CODE: 100,
+        NAME: 'REDE TESTE',
+        TRADE_NAME: 'REDE TESTE LTDA',
+        DOCUMENT: '12345678000199',
+        STORE_COUNT: 4,
+      },
+    ]);
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .get('/commercial/filters/parent-clients')
+      .query({
+        search: 'REDE',
+      })
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .expect(200);
+
+    expect(oracleQuery).toHaveBeenCalledTimes(1);
+
+    const [, binds] = oracleQuery.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+
+    expect(binds).toEqual({
+      search: 'REDE',
+    });
+  });
+
   it('/auth/verify (POST) não existe mais', async () => {
     const httpServer = app.getHttpServer() as App;
 
