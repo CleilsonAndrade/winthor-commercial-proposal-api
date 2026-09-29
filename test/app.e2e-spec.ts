@@ -896,6 +896,280 @@ describe('AppController (e2e)', () => {
     });
   });
 
+  it('/commercial/catalog/search (POST) retorna 401 sem JWT', async () => {
+    const httpServer = app.getHttpServer() as App;
+
+    await request(httpServer)
+      .post('/commercial/catalog/search')
+      .send({
+        plazaCodes: [468],
+      })
+      .expect(401);
+
+    expect(oracleQuery).not.toHaveBeenCalled();
+  });
+
+  it('/commercial/catalog/search (POST) retorna 400 sem praça', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .post('/commercial/catalog/search')
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .send({})
+      .expect(400);
+
+    expect(oracleQuery).not.toHaveBeenCalled();
+  });
+
+  it('/commercial/catalog/search (POST) retorna catálogo para JWT válido', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    oracleQuery.mockResolvedValue([
+      {
+        PHOTO_PATH: '\\\\servidor\\WINTHOR\\IMG\\produto.jpg',
+        PRODUCT_CODE: 123,
+        DESCRIPTION: 'PRODUTO TESTE',
+
+        MULTIPLE_QUANTITY: 1,
+        INNER_BOX_QUANTITY: 6,
+        MASTER_BOX_QUANTITY: 24,
+
+        IPI_PERCENT: 5,
+        IPI_VALUE: 2.5,
+        MVA_PERCENT: 40,
+        ST_VALUE: 3.5,
+
+        PRICE_REGION_CODE: 368,
+        PRICE_STATE: 'SP',
+        PRICE_REGION_NAME: 'SAO PAULO',
+        PRICE_REGION_TYPE: 'UF',
+
+        NET_PRICE: 100,
+        GROSS_PRICE: 106,
+        DISCOUNT_PERCENT: 10,
+        DISCOUNTED_NET_PRICE: 90,
+        DISCOUNTED_GROSS_PRICE: 95.4,
+
+        PROMOTION_START: new Date('2026-09-01T00:00:00.000Z'),
+        PROMOTION_END: new Date('2026-09-30T00:00:00.000Z'),
+        PROMOTION_PERCENT: 20,
+        PROMOTION_MIN_QUANTITY: 3,
+        PROMOTION_NET_PRICE: 80,
+        PROMOTION_GROSS_PRICE: 84.8,
+
+        ALERT: '',
+        AVAILABLE_STOCK: 15,
+
+        BRAND: 'MARCA TESTE',
+        LINE_STATUS: 'EM LINHA',
+
+        DEPARTMENT_CODE: 600,
+        DEPARTMENT_NAME: 'BRINQUEDOS',
+        SECTION_NAME: 'SECAO TESTE',
+        SALES_CURVE: 'A',
+
+        RESALE: 'S',
+      },
+    ]);
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    const response = await request(httpServer)
+      .post('/commercial/catalog/search')
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .send({
+        plazaCodes: [468],
+        discountPercent: 10,
+      })
+      .expect(200);
+
+    expect(response.body).toEqual([
+      {
+        productCode: 123,
+        description: 'PRODUTO TESTE',
+        photoAvailable: true,
+
+        multipleQuantity: 1,
+        innerBoxQuantity: 6,
+        masterBoxQuantity: 24,
+
+        ipiPercent: 5,
+        ipiValue: 2.5,
+        mvaPercent: 40,
+        stValue: 3.5,
+
+        priceRegionCode: 368,
+        priceState: 'SP',
+        priceRegionName: 'SAO PAULO',
+        priceRegionType: 'UF',
+
+        netPrice: 100,
+        grossPrice: 106,
+        discountPercent: 10,
+        discountedNetPrice: 90,
+        discountedGrossPrice: 95.4,
+
+        promotionStart: '2026-09-01T00:00:00.000Z',
+        promotionEnd: '2026-09-30T00:00:00.000Z',
+        promotionPercent: 20,
+        promotionMinQuantity: 3,
+        promotionNetPrice: 80,
+        promotionGrossPrice: 84.8,
+
+        alert: '',
+        availableStock: 15,
+
+        brand: 'MARCA TESTE',
+        lineStatus: 'EM LINHA',
+
+        departmentCode: 600,
+        departmentName: 'BRINQUEDOS',
+        sectionName: 'SECAO TESTE',
+        salesCurve: 'A',
+
+        resale: 'S',
+      },
+    ]);
+
+    expect(JSON.stringify(response.body)).not.toContain('WINTHOR\\\\IMG');
+
+    expect(JSON.stringify(response.body)).not.toContain('"photoPath"');
+  });
+
+  it('/commercial/catalog/search (POST) monta SQL e binds sem sentinelas técnicos', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    oracleQuery.mockResolvedValue([]);
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .post('/commercial/catalog/search')
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .send({
+        plazaCodes: [468, 469],
+        departmentCodes: [600],
+        sectionCodes: [10, 20],
+        parentClientCodes: [100],
+        clientCodes: [12345],
+        resale: 'YES',
+        discountPercent: 10,
+        maxFinalPrice: 500,
+        pricePresence: 'WITH',
+        innerBoxPresence: 'WITHOUT',
+        minStock: 1,
+        purchaseMonths: 12,
+      })
+      .expect(200)
+      .expect([]);
+
+    expect(oracleQuery).toHaveBeenCalledTimes(1);
+
+    const [sql, binds] = oracleQuery.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+
+    expect(sql).toContain('PR.CODPRACA IN (:plaza0, :plaza1)');
+
+    expect(sql).toContain('SEC.CODEPTO IN (:department0)');
+
+    expect(sql).toContain('P.CODSEC IN (:section0, :section1)');
+
+    expect(sql).toContain('IN (:parentClient0)');
+
+    expect(sql).toContain('C.CODCLI IN (:client0)');
+
+    expect(sql).not.toContain('-1 IN');
+    expect(sql).not.toContain(':PRACA');
+    expect(sql).not.toContain(':DEPARTAMENTO');
+    expect(sql).not.toContain(':SECAO');
+
+    expect(binds).toEqual({
+      plaza0: 468,
+      plaza1: 469,
+      department0: 600,
+      section0: 10,
+      section1: 20,
+      resale: 'S',
+      discountPercent: 10,
+      maxFinalPrice: 500,
+      minStock: 1,
+      innerBoxPresence: 'N',
+      purchaseMonths: 12,
+      parentClient0: 100,
+      client0: 12345,
+    });
+  });
+
   it('/auth/verify (POST) não existe mais', async () => {
     const httpServer = app.getHttpServer() as App;
 
