@@ -738,6 +738,164 @@ describe('AppController (e2e)', () => {
     });
   });
 
+  it('/commercial/filters/clients (GET) retorna 401 sem JWT', async () => {
+    const httpServer = app.getHttpServer() as App;
+
+    await request(httpServer)
+      .get('/commercial/filters/clients')
+      .query({
+        search: 'CLIENTE',
+      })
+      .expect(401);
+
+    expect(oracleQuery).not.toHaveBeenCalled();
+  });
+
+  it('/commercial/filters/clients (GET) retorna 400 sem critério de pesquisa', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .get('/commercial/filters/clients')
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .expect(400);
+
+    expect(oracleQuery).not.toHaveBeenCalled();
+  });
+
+  it('/commercial/filters/clients (GET) retorna clientes para JWT válido', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    oracleQuery.mockResolvedValue([
+      {
+        CODE: 12345,
+        NAME: 'CLIENTE TESTE LTDA',
+        TRADE_NAME: 'CLIENTE TESTE',
+        DOCUMENT: '12345678000199',
+        CITY: 'SAO PAULO',
+        BLOCKED: 'N',
+        NETWORK_CODE: 100,
+      },
+    ]);
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .get('/commercial/filters/clients')
+      .query({
+        search: 'CLIENTE',
+      })
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .expect(200)
+      .expect([
+        {
+          code: 12345,
+          name: 'CLIENTE TESTE LTDA',
+          tradeName: 'CLIENTE TESTE',
+          document: '12345678000199',
+          city: 'SAO PAULO',
+          blocked: 'N',
+          networkCode: 100,
+        },
+      ]);
+  });
+
+  it('/commercial/filters/clients (GET) encaminha nome e prefixo do documento', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    oracleQuery.mockResolvedValue([]);
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .get('/commercial/filters/clients')
+      .query({
+        search: 'AGROSEMA',
+        documentPrefix: '12345678',
+      })
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .expect(200);
+
+    expect(oracleQuery).toHaveBeenCalledTimes(1);
+
+    const [, binds] = oracleQuery.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+
+    expect(binds).toEqual({
+      search: 'AGROSEMA',
+      documentPrefix: '12345678',
+    });
+  });
+
   it('/auth/verify (POST) não existe mais', async () => {
     const httpServer = app.getHttpServer() as App;
 

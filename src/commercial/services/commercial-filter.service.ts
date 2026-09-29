@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { OracleService } from '../../infrastructure/oracle/oracle.service';
+import { ClientOption } from '../interfaces/client-option.interface';
 import { DepartmentOption } from '../interfaces/department-option.interface';
 import { ParentClientOption } from '../interfaces/parent-client-option.interface';
 import { PlazaOption } from '../interfaces/plaza-option.interface';
@@ -35,9 +36,73 @@ interface ParentClientRow {
   STORE_COUNT: number;
 }
 
+interface ClientRow {
+  CODE: number;
+  NAME: string;
+  TRADE_NAME: string | null;
+  DOCUMENT: string | null;
+  CITY: string | null;
+  BLOCKED: string | null;
+  NETWORK_CODE: number;
+}
+
 @Injectable()
 export class CommercialFilterService {
   constructor(private readonly oracleService: OracleService) {}
+
+  async findClients(
+    search?: string,
+    documentPrefix?: string,
+  ): Promise<ClientOption[]> {
+    const normalizedSearch = search?.trim() || null;
+    const normalizedDocumentPrefix = documentPrefix?.trim() || null;
+
+    if (!normalizedSearch && !normalizedDocumentPrefix) {
+      throw new BadRequestException(
+        'Informe o nome ou o prefixo do documento para pesquisar clientes.',
+      );
+    }
+
+    const rows = await this.oracleService.query<ClientRow>(
+      `SELECT
+         C.CODCLI AS CODE,
+         C.CLIENTE AS NAME,
+         C.FANTASIA AS TRADE_NAME,
+         C.CGCENT AS DOCUMENT,
+         C.MUNICENT AS CITY,
+         C.BLOQUEIO AS BLOCKED,
+         NVL(C.CODCLIPRINC, C.CODCLI) AS NETWORK_CODE
+       FROM PCCLIENT C
+       WHERE C.DTEXCLUSAO IS NULL
+         AND (
+           :search IS NULL
+           OR UPPER(NVL(C.CLIENTE, '-'))
+             LIKE '%' || UPPER(:search) || '%'
+         )
+         AND (
+           :documentPrefix IS NULL
+           OR NVL(C.CGCENT, '-')
+             LIKE :documentPrefix || '%'
+         )
+       ORDER BY
+         C.CLIENTE,
+         C.CODCLI`,
+      {
+        search: normalizedSearch,
+        documentPrefix: normalizedDocumentPrefix,
+      },
+    );
+
+    return rows.map((row) => ({
+      code: row.CODE,
+      name: row.NAME,
+      tradeName: row.TRADE_NAME,
+      document: row.DOCUMENT,
+      city: row.CITY,
+      blocked: row.BLOCKED,
+      networkCode: row.NETWORK_CODE,
+    }));
+  }
 
   async findDepartments(search?: string): Promise<DepartmentOption[]> {
     const normalizedSearch = search?.trim() || null;

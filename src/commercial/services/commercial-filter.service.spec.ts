@@ -258,4 +258,75 @@ describe('CommercialFilterService', () => {
       search: null,
     });
   });
+
+  it('consulta clientes por nome e prefixo de documento', async () => {
+    const { service, query } = createSubject();
+
+    query.mockResolvedValue([
+      {
+        CODE: 12345,
+        NAME: 'CLIENTE TESTE LTDA',
+        TRADE_NAME: 'CLIENTE TESTE',
+        DOCUMENT: '12345678000199',
+        CITY: 'SAO PAULO',
+        BLOCKED: 'N',
+        NETWORK_CODE: 100,
+      },
+    ]);
+
+    await expect(service.findClients('cliente', '12345678')).resolves.toEqual([
+      {
+        code: 12345,
+        name: 'CLIENTE TESTE LTDA',
+        tradeName: 'CLIENTE TESTE',
+        document: '12345678000199',
+        city: 'SAO PAULO',
+        blocked: 'N',
+        networkCode: 100,
+      },
+    ]);
+
+    const [sql, binds] = query.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+
+    expect(sql).toContain('FROM PCCLIENT C');
+    expect(sql).toContain('C.DTEXCLUSAO IS NULL');
+    expect(sql).toContain("LIKE '%' || UPPER(:search) || '%'");
+    expect(sql).toContain("LIKE :documentPrefix || '%'");
+    expect(sql).toContain('NVL(C.CODCLIPRINC, C.CODCLI) AS NETWORK_CODE');
+
+    expect(binds).toEqual({
+      search: 'cliente',
+      documentPrefix: '12345678',
+    });
+  });
+
+  it('permite pesquisar cliente somente por documento', async () => {
+    const { service, query } = createSubject();
+
+    query.mockResolvedValue([]);
+
+    await expect(service.findClients(undefined, '12345678')).resolves.toEqual(
+      [],
+    );
+
+    const [, binds] = query.mock.calls[0] as [string, Record<string, unknown>];
+
+    expect(binds).toEqual({
+      search: null,
+      documentPrefix: '12345678',
+    });
+  });
+
+  it('rejeita pesquisa de cliente sem nenhum critério', async () => {
+    const { service, query } = createSubject();
+
+    await expect(service.findClients('   ', '   ')).rejects.toThrow(
+      'Informe o nome ou o prefixo do documento para pesquisar clientes.',
+    );
+
+    expect(query).not.toHaveBeenCalled();
+  });
 });
