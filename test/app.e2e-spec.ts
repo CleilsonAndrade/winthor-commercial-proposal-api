@@ -27,12 +27,14 @@ function isLoginResponseBody(value: unknown): value is LoginResponseBody {
 describe('AppController (e2e)', () => {
   let app: INestApplication;
   let authenticate: jest.Mock;
+  let oracleQuery: jest.Mock;
 
   beforeEach(async () => {
     process.env.JWT_SECRET = 'jwt-secret-exclusivo-para-testes-e2e';
     process.env.JWT_EXPIRATION_TIME = '60m';
 
     authenticate = jest.fn();
+    oracleQuery = jest.fn();
 
     const oracleServiceMock = {
       health: jest.fn().mockResolvedValue({
@@ -43,6 +45,7 @@ describe('AppController (e2e)', () => {
         user: 'TEST',
         test: 1,
       }),
+      query: oracleQuery,
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -229,6 +232,137 @@ describe('AppController (e2e)', () => {
       .get('/auth/me')
       .set('Authorization', `Bearer ${tamperedToken}`)
       .expect(401);
+  });
+
+  it('/commercial/filters/plazas (GET) retorna 401 sem JWT', async () => {
+    const httpServer = app.getHttpServer() as App;
+
+    await request(httpServer).get('/commercial/filters/plazas').expect(401);
+
+    expect(oracleQuery).not.toHaveBeenCalled();
+  });
+
+  it('/commercial/filters/plazas (GET) retorna praças para JWT válido', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    oracleQuery.mockResolvedValue([
+      {
+        CODE: 468,
+        NAME: 'SAO PAULO',
+        REGION_CODE: 368,
+        STATE: 'SP',
+        TYPE: 'UF',
+      },
+      {
+        CODE: 383,
+        NAME: 'COBASI - SP',
+        REGION_CODE: 383,
+        STATE: 'SP',
+        TYPE: 'ESPECIAL',
+      },
+    ]);
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .get('/commercial/filters/plazas')
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .expect(200)
+      .expect([
+        {
+          code: 468,
+          name: 'SAO PAULO',
+          regionCode: 368,
+          state: 'SP',
+          type: 'UF',
+        },
+        {
+          code: 383,
+          name: 'COBASI - SP',
+          regionCode: 383,
+          state: 'SP',
+          type: 'ESPECIAL',
+        },
+      ]);
+  });
+
+  it('/commercial/filters/plazas (GET) encaminha pesquisa textual', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    oracleQuery.mockResolvedValue([
+      {
+        CODE: 468,
+        NAME: 'SAO PAULO',
+        REGION_CODE: 368,
+        STATE: 'SP',
+        TYPE: 'UF',
+      },
+    ]);
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .get('/commercial/filters/plazas')
+      .query({
+        search: 'SAO',
+      })
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .expect(200);
+
+    expect(oracleQuery).toHaveBeenCalledTimes(1);
+
+    const [, binds] = oracleQuery.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+
+    expect(binds).toEqual({
+      search: 'SAO',
+    });
   });
 
   it('/auth/verify (POST) não existe mais', async () => {
