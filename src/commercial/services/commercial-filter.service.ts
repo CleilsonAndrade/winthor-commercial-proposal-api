@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { OracleService } from '../../infrastructure/oracle/oracle.service';
+import { DepartmentOption } from '../interfaces/department-option.interface';
 import { PlazaOption } from '../interfaces/plaza-option.interface';
 
 interface PlazaRow {
@@ -10,9 +11,59 @@ interface PlazaRow {
   TYPE: 'UF' | 'ESPECIAL';
 }
 
+interface DepartmentRow {
+  CODE: number;
+  NAME: string;
+  STATUS: 'ATIVO' | 'INATIVO';
+  SECTION_COUNT: number;
+}
+
 @Injectable()
 export class CommercialFilterService {
   constructor(private readonly oracleService: OracleService) {}
+
+  async findDepartments(search?: string): Promise<DepartmentOption[]> {
+    const normalizedSearch = search?.trim() || null;
+
+    const rows = await this.oracleService.query<DepartmentRow>(
+      `SELECT
+         D.CODEPTO AS CODE,
+         D.DESCRICAO AS NAME,
+         CASE
+           WHEN UPPER(TRIM(D.DESCRICAO)) LIKE 'INAT%'
+           THEN 'INATIVO'
+           ELSE 'ATIVO'
+         END AS STATUS,
+         (
+           SELECT COUNT(*)
+           FROM PCSECAO S
+           WHERE S.CODEPTO = D.CODEPTO
+             AND S.DTEXCLUSAO IS NULL
+         ) AS SECTION_COUNT
+       FROM PCDEPTO D
+       WHERE (
+         :search IS NULL
+         OR UPPER(D.DESCRICAO) LIKE '%' || UPPER(:search) || '%'
+       )
+       ORDER BY
+         CASE
+           WHEN UPPER(TRIM(D.DESCRICAO)) LIKE 'INAT%'
+           THEN 1
+           ELSE 0
+         END,
+         D.DESCRICAO`,
+      {
+        search: normalizedSearch,
+      },
+    );
+
+    return rows.map((row) => ({
+      code: row.CODE,
+      name: row.NAME,
+      status: row.STATUS,
+      sectionCount: row.SECTION_COUNT,
+    }));
+  }
 
   async findPlazas(search?: string): Promise<PlazaOption[]> {
     const normalizedSearch = search?.trim() || null;

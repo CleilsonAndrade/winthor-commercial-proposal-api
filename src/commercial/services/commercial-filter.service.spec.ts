@@ -69,4 +69,70 @@ describe('CommercialFilterService', () => {
       search: null,
     });
   });
+
+  it('consulta departamentos com situação e quantidade de seções', async () => {
+    const { service, query } = createSubject();
+
+    query.mockResolvedValue([
+      {
+        CODE: 600,
+        NAME: 'BRINQUEDOS',
+        STATUS: 'ATIVO',
+        SECTION_COUNT: 89,
+      },
+      {
+        CODE: 300,
+        NAME: 'INATIVO- PRODUTOS FL',
+        STATUS: 'INATIVO',
+        SECTION_COUNT: 1,
+      },
+    ]);
+
+    await expect(service.findDepartments('brin')).resolves.toEqual([
+      {
+        code: 600,
+        name: 'BRINQUEDOS',
+        status: 'ATIVO',
+        sectionCount: 89,
+      },
+      {
+        code: 300,
+        name: 'INATIVO- PRODUTOS FL',
+        status: 'INATIVO',
+        sectionCount: 1,
+      },
+    ]);
+
+    const [sql, binds] = query.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+
+    expect(sql).toContain('FROM PCDEPTO D');
+    expect(sql).toContain('FROM PCSECAO S');
+    expect(sql).toContain('S.DTEXCLUSAO IS NULL');
+    expect(sql).toContain("UPPER(TRIM(D.DESCRICAO)) LIKE 'INAT%'");
+    expect(sql).not.toContain("D.STATUS = 'A'");
+    expect(sql).toContain(
+      "UPPER(D.DESCRICAO) LIKE '%' || UPPER(:search) || '%'",
+    );
+
+    expect(binds).toEqual({
+      search: 'brin',
+    });
+  });
+
+  it('normaliza pesquisa de departamento em branco para null', async () => {
+    const { service, query } = createSubject();
+
+    query.mockResolvedValue([]);
+
+    await expect(service.findDepartments('   ')).resolves.toEqual([]);
+
+    const [, binds] = query.mock.calls[0] as [string, Record<string, unknown>];
+
+    expect(binds).toEqual({
+      search: null,
+    });
+  });
 });

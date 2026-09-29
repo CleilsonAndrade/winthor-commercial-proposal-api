@@ -365,6 +365,134 @@ describe('AppController (e2e)', () => {
     });
   });
 
+  it('/commercial/filters/departments (GET) retorna 401 sem JWT', async () => {
+    const httpServer = app.getHttpServer() as App;
+
+    await request(httpServer)
+      .get('/commercial/filters/departments')
+      .expect(401);
+
+    expect(oracleQuery).not.toHaveBeenCalled();
+  });
+
+  it('/commercial/filters/departments (GET) retorna departamentos para JWT válido', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    oracleQuery.mockResolvedValue([
+      {
+        CODE: 600,
+        NAME: 'BRINQUEDOS',
+        STATUS: 'ATIVO',
+        SECTION_COUNT: 89,
+      },
+      {
+        CODE: 300,
+        NAME: 'INATIVO- PRODUTOS FL',
+        STATUS: 'INATIVO',
+        SECTION_COUNT: 1,
+      },
+    ]);
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .get('/commercial/filters/departments')
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .expect(200)
+      .expect([
+        {
+          code: 600,
+          name: 'BRINQUEDOS',
+          status: 'ATIVO',
+          sectionCount: 89,
+        },
+        {
+          code: 300,
+          name: 'INATIVO- PRODUTOS FL',
+          status: 'INATIVO',
+          sectionCount: 1,
+        },
+      ]);
+  });
+
+  it('/commercial/filters/departments (GET) encaminha pesquisa textual', async () => {
+    authenticate.mockResolvedValue({
+      subject: 'winthor:123',
+      registration: 123,
+      username: 'USUARIO.BD',
+      displayName: 'USUARIO_TESTE',
+      roles: ['16', 'DESENVOLVIMENTO'],
+      status: 'ativo',
+      provider: 'winthor',
+    });
+
+    oracleQuery.mockResolvedValue([
+      {
+        CODE: 600,
+        NAME: 'BRINQUEDOS',
+        STATUS: 'ATIVO',
+        SECTION_COUNT: 89,
+      },
+    ]);
+
+    const httpServer = app.getHttpServer() as App;
+
+    const loginResponse = await request(httpServer)
+      .post('/auth/login')
+      .send({
+        username: 'USUARIO.BD',
+        password: 'SENHA_TESTE',
+      })
+      .expect(200);
+
+    const body: unknown = loginResponse.body;
+
+    if (!isLoginResponseBody(body)) {
+      throw new Error('Resposta de login fora do contrato esperado');
+    }
+
+    await request(httpServer)
+      .get('/commercial/filters/departments')
+      .query({
+        search: 'BRIN',
+      })
+      .set('Authorization', `Bearer ${body.access_token}`)
+      .expect(200);
+
+    expect(oracleQuery).toHaveBeenCalledTimes(1);
+
+    const [, binds] = oracleQuery.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+
+    expect(binds).toEqual({
+      search: 'BRIN',
+    });
+  });
+
   it('/auth/verify (POST) não existe mais', async () => {
     const httpServer = app.getHttpServer() as App;
 
