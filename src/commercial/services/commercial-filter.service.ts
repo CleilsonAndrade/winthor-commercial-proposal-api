@@ -1,5 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { OracleService } from '../../infrastructure/oracle/oracle.service';
+import {
+  COMMERCIAL_HOMOLOGATED_REGION_CODES_SQL,
+  COMMERCIAL_UF_REGION_CODES_SQL,
+} from '../constants/commercial-region.constants';
 import { ClientOption } from '../interfaces/client-option.interface';
 import { DepartmentOption } from '../interfaces/department-option.interface';
 import { ParentClientOption } from '../interfaces/parent-client-option.interface';
@@ -242,12 +246,7 @@ export class CommercialFilterService {
          R.NUMREGIAO AS REGION_CODE,
          R.UF AS STATE,
          CASE
-           WHEN R.NUMREGIAO IN (
-             300,302,308,310,314,321,324,327,
-             328,330,334,336,338,340,342,344,
-             346,348,350,352,355,357,362,367,
-             368,370,372
-           )
+           WHEN R.NUMREGIAO IN (${COMMERCIAL_UF_REGION_CODES_SQL})
            THEN 'UF'
            ELSE 'ESPECIAL'
          END AS TYPE
@@ -257,13 +256,7 @@ export class CommercialFilterService {
        WHERE NVL(PR.SITUACAO, 'A') <> 'I'
          AND UPPER(TRIM(PR.PRACA)) NOT LIKE 'INAT%'
          AND R.STATUS = 'A'
-         AND R.NUMREGIAO IN (
-           300,302,308,310,314,321,324,327,
-           328,330,332,334,336,338,340,342,
-           344,346,348,350,352,355,357,362,
-           367,368,370,372,376,377,381,382,
-           383,480,481,1000
-         )
+         AND R.NUMREGIAO IN (${COMMERCIAL_HOMOLOGATED_REGION_CODES_SQL})
          AND (
            :search IS NULL
            OR UPPER(PR.PRACA) LIKE '%' || UPPER(:search) || '%'

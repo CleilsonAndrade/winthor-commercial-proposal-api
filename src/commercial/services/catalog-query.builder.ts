@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import {
+  COMMERCIAL_HOMOLOGATED_REGION_CODES_SQL,
+  COMMERCIAL_UF_REGION_CODES_SQL,
+} from '../constants/commercial-region.constants';
 import { CatalogQuery } from '../interfaces/catalog-query.interface';
 import { CatalogSearchCriteria } from '../interfaces/catalog-search-criteria.interface';
 import { CatalogQueryFilterBuilder } from './catalog-query-filter.builder';
@@ -51,12 +55,11 @@ export class CatalogQueryBuilder {
     T.NUMREGIAO AS PRICE_REGION_CODE,
     RG.UF AS PRICE_STATE,
     RG.REGIAO AS PRICE_REGION_NAME,
-    CASE
-      WHEN UPPER(RG.REGIAO) LIKE '%CAPITAL%'
-        OR UPPER(TRIM(RG.REGIAO)) = 'DISTRITO FEDERAL'
-      THEN 'UF'
-      ELSE 'ESPECIAL'
-    END AS PRICE_REGION_TYPE,
+      CASE
+        WHEN T.NUMREGIAO IN (${COMMERCIAL_UF_REGION_CODES_SQL})
+        THEN 'UF'
+        ELSE 'ESPECIAL'
+      END AS PRICE_REGION_TYPE,
     ROUND(T.PVENDASEMIMPOSTO1, 2) AS NET_PRICE,
     ROUND(
       T.PVENDASEMIMPOSTO1
@@ -157,13 +160,7 @@ JOIN (
           AND NVL(PR.SITUACAO, 'A') <> 'I'
           AND UPPER(TRIM(PR.PRACA)) NOT LIKE 'INAT%'
           AND R.STATUS = 'A'
-          AND R.NUMREGIAO IN (
-            300, 302, 308, 310, 314, 321, 324, 327,
-            328, 330, 332, 334, 336, 338, 340, 342,
-            344, 346, 348, 350, 352, 355, 357, 362,
-            367, 368, 370, 372, 376, 377, 381, 382,
-            383, 480, 481, 1000
-          )
+          AND R.NUMREGIAO IN (${COMMERCIAL_HOMOLOGATED_REGION_CODES_SQL})
       )
   ) X
   WHERE X.RN = 1
