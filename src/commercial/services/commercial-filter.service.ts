@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OracleService } from '../../infrastructure/oracle/oracle.service';
 import { DepartmentOption } from '../interfaces/department-option.interface';
 import { PlazaOption } from '../interfaces/plaza-option.interface';
+import { SectionOption } from '../interfaces/section-option.interface';
 
 interface PlazaRow {
   CODE: number;
@@ -16,6 +17,13 @@ interface DepartmentRow {
   NAME: string;
   STATUS: 'ATIVO' | 'INATIVO';
   SECTION_COUNT: number;
+}
+
+interface SectionRow {
+  CODE: number;
+  NAME: string;
+  DEPARTMENT_CODE: number | null;
+  DEPARTMENT_NAME: string | null;
 }
 
 @Injectable()
@@ -62,6 +70,39 @@ export class CommercialFilterService {
       name: row.NAME,
       status: row.STATUS,
       sectionCount: row.SECTION_COUNT,
+    }));
+  }
+
+  async findSections(search?: string): Promise<SectionOption[]> {
+    const normalizedSearch = search?.trim() || null;
+
+    const rows = await this.oracleService.query<SectionRow>(
+      `SELECT
+         SEC.CODSEC AS CODE,
+         SEC.DESCRICAO AS NAME,
+         SEC.CODEPTO AS DEPARTMENT_CODE,
+         DEP.DESCRICAO AS DEPARTMENT_NAME
+       FROM PCSECAO SEC
+       LEFT JOIN PCDEPTO DEP
+         ON DEP.CODEPTO = SEC.CODEPTO
+       WHERE SEC.DTEXCLUSAO IS NULL
+         AND (
+           :search IS NULL
+           OR UPPER(SEC.DESCRICAO) LIKE '%' || UPPER(:search) || '%'
+         )
+       ORDER BY
+         DEP.DESCRICAO,
+         SEC.DESCRICAO`,
+      {
+        search: normalizedSearch,
+      },
+    );
+
+    return rows.map((row) => ({
+      code: row.CODE,
+      name: row.NAME,
+      departmentCode: row.DEPARTMENT_CODE,
+      departmentName: row.DEPARTMENT_NAME,
     }));
   }
 

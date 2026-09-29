@@ -135,4 +135,68 @@ describe('CommercialFilterService', () => {
       search: null,
     });
   });
+
+  it('consulta somente seções não excluídas com seu departamento', async () => {
+    const { service, query } = createSubject();
+
+    query.mockResolvedValue([
+      {
+        CODE: 123,
+        NAME: 'BONECAS',
+        DEPARTMENT_CODE: 600,
+        DEPARTMENT_NAME: 'BRINQUEDOS',
+      },
+      {
+        CODE: 456,
+        NAME: 'SEM DEPARTAMENTO',
+        DEPARTMENT_CODE: null,
+        DEPARTMENT_NAME: null,
+      },
+    ]);
+
+    await expect(service.findSections('bone')).resolves.toEqual([
+      {
+        code: 123,
+        name: 'BONECAS',
+        departmentCode: 600,
+        departmentName: 'BRINQUEDOS',
+      },
+      {
+        code: 456,
+        name: 'SEM DEPARTAMENTO',
+        departmentCode: null,
+        departmentName: null,
+      },
+    ]);
+
+    const [sql, binds] = query.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+
+    expect(sql).toContain('FROM PCSECAO SEC');
+    expect(sql).toContain('LEFT JOIN PCDEPTO DEP');
+    expect(sql).toContain('SEC.DTEXCLUSAO IS NULL');
+    expect(sql).toContain(
+      "UPPER(SEC.DESCRICAO) LIKE '%' || UPPER(:search) || '%'",
+    );
+
+    expect(binds).toEqual({
+      search: 'bone',
+    });
+  });
+
+  it('normaliza pesquisa de seção em branco para null', async () => {
+    const { service, query } = createSubject();
+
+    query.mockResolvedValue([]);
+
+    await expect(service.findSections('   ')).resolves.toEqual([]);
+
+    const [, binds] = query.mock.calls[0] as [string, Record<string, unknown>];
+
+    expect(binds).toEqual({
+      search: null,
+    });
+  });
 });
