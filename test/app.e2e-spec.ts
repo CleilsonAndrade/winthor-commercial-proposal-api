@@ -989,7 +989,7 @@ describe('AppController (e2e)', () => {
         PROMOTION_NET_PRICE: 80,
         PROMOTION_GROSS_PRICE: 84.8,
 
-        ALERT: '',
+        ALERT: null,
         AVAILABLE_STOCK: 15,
 
         BRAND: 'MARCA TESTE',

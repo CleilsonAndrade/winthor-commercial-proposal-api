@@ -42,7 +42,7 @@ interface CatalogRow {
   PROMOTION_NET_PRICE: number | null;
   PROMOTION_GROSS_PRICE: number | null;
 
-  ALERT: string;
+  ALERT: string | null;
   AVAILABLE_STOCK: number;
 
   BRAND: string | null;
@@ -110,7 +110,7 @@ export class CommercialCatalogService {
       promotionNetPrice: row.PROMOTION_NET_PRICE,
       promotionGrossPrice: row.PROMOTION_GROSS_PRICE,
 
-      alert: row.ALERT,
+      alert: row.ALERT ?? '',
       availableStock: row.AVAILABLE_STOCK,
 
       brand: row.BRAND,
