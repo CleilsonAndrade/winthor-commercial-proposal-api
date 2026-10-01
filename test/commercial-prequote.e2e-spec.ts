@@ -289,6 +289,25 @@ describe('CommercialPreQuoteController (e2e)', () => {
 
             resale: 'S',
           },
+          pricing: {
+            regular: {
+              netUnitPrice: 91.85,
+              grossUnitPrice: 97.82,
+            },
+            discount: {
+              percent: 10,
+              netUnitPrice: 82.67,
+              grossUnitPrice: 88.04,
+            },
+            promotion: {
+              available: false,
+              eligible: false,
+              minimumQuantity: null,
+              percent: 0,
+              netUnitPrice: null,
+              grossUnitPrice: null,
+            },
+          },
         },
       ],
     });

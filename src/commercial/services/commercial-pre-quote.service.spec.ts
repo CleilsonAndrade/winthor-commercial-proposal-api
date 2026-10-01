@@ -9,14 +9,31 @@ describe('CommercialPreQuoteService', () => {
   const createCatalogItem = (
     productCode: number,
     netPrice: number | null,
+    promotion?: {
+      percent: number;
+      minimumQuantity: number;
+      netPrice: number;
+      grossPrice: number;
+    },
   ): CatalogItem =>
     ({
       productCode,
       description: `PRODUTO ${productCode}`,
+
       netPrice,
       grossPrice: netPrice,
-      discountedNetPrice: netPrice,
-      discountedGrossPrice: netPrice,
+
+      discountPercent: 10,
+      discountedNetPrice:
+        netPrice === null ? null : Number((netPrice * 0.9).toFixed(2)),
+      discountedGrossPrice:
+        netPrice === null ? null : Number((netPrice * 0.9).toFixed(2)),
+
+      promotionPercent: promotion?.percent ?? 0,
+      promotionMinQuantity: promotion?.minimumQuantity ?? null,
+      promotionNetPrice: promotion?.netPrice ?? netPrice,
+      promotionGrossPrice: promotion?.grossPrice ?? netPrice,
+
       priceRegionCode: 368,
       priceRegionName: 'SAO PAULO',
       priceRegionType: 'UF',
@@ -72,7 +89,7 @@ describe('CommercialPreQuoteService', () => {
       discountPercent: 10,
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       context: {
         plazaCodes: [468],
         discountPercent: 10,
@@ -143,5 +160,114 @@ describe('CommercialPreQuoteService', () => {
     await expect(service.calculate(input)).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('não trata preço promocional preenchido como campanha quando percentual é zero', async () => {
+    const { service, search } = createSubject();
+
+    const product = createCatalogItem(7624, 91.85);
+
+    search.mockResolvedValue([product]);
+
+    const input = Object.assign(new PreQuoteCalculateDto(), {
+      plazaCodes: [468],
+      discountPercent: 10,
+      items: [
+        {
+          productCode: 7624,
+          quantity: 12,
+        },
+      ],
+    });
+
+    const result = await service.calculate(input);
+
+    expect(result.items[0].pricing).toEqual({
+      regular: {
+        netUnitPrice: 91.85,
+        grossUnitPrice: 91.85,
+      },
+      discount: {
+        percent: 10,
+        netUnitPrice: 82.66,
+        grossUnitPrice: 82.66,
+      },
+      promotion: {
+        available: false,
+        eligible: false,
+        minimumQuantity: null,
+        percent: 0,
+        netUnitPrice: null,
+        grossUnitPrice: null,
+      },
+    });
+  });
+
+  it('informa promoção disponível mas inelegível abaixo da quantidade mínima', async () => {
+    const { service, search } = createSubject();
+
+    const product = createCatalogItem(7624, 100, {
+      percent: 20,
+      minimumQuantity: 6,
+      netPrice: 80,
+      grossPrice: 84.8,
+    });
+
+    search.mockResolvedValue([product]);
+
+    const input = Object.assign(new PreQuoteCalculateDto(), {
+      plazaCodes: [468],
+      items: [
+        {
+          productCode: 7624,
+          quantity: 5,
+        },
+      ],
+    });
+
+    const result = await service.calculate(input);
+
+    expect(result.items[0].pricing.promotion).toEqual({
+      available: true,
+      eligible: false,
+      minimumQuantity: 6,
+      percent: 20,
+      netUnitPrice: 80,
+      grossUnitPrice: 84.8,
+    });
+  });
+
+  it('torna promoção elegível ao atingir a quantidade mínima', async () => {
+    const { service, search } = createSubject();
+
+    const product = createCatalogItem(7624, 100, {
+      percent: 20,
+      minimumQuantity: 6,
+      netPrice: 80,
+      grossPrice: 84.8,
+    });
+
+    search.mockResolvedValue([product]);
+
+    const input = Object.assign(new PreQuoteCalculateDto(), {
+      plazaCodes: [468],
+      items: [
+        {
+          productCode: 7624,
+          quantity: 6,
+        },
+      ],
+    });
+
+    const result = await service.calculate(input);
+
+    expect(result.items[0].pricing.promotion).toEqual({
+      available: true,
+      eligible: true,
+      minimumQuantity: 6,
+      percent: 20,
+      netUnitPrice: 80,
+      grossUnitPrice: 84.8,
+    });
   });
 });
