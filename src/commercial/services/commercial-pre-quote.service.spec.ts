@@ -461,6 +461,11 @@ describe('CommercialPreQuoteService', () => {
         itemsWithoutPrice: 0,
         promotionAvailableItems: 0,
         promotionEligibleItems: 0,
+        promotionIneligibleItems: 0,
+        allItemsPriced: true,
+        hasPromotionAvailable: false,
+        hasPromotionEligible: false,
+        hasPromotionPendingQuantity: false,
       },
     });
   });
@@ -504,6 +509,11 @@ describe('CommercialPreQuoteService', () => {
         itemsWithoutPrice: 1,
         promotionAvailableItems: 0,
         promotionEligibleItems: 0,
+        promotionIneligibleItems: 0,
+        allItemsPriced: false,
+        hasPromotionAvailable: false,
+        hasPromotionEligible: false,
+        hasPromotionPendingQuantity: false,
       },
     });
   });
@@ -557,6 +567,11 @@ describe('CommercialPreQuoteService', () => {
       itemsWithoutPrice: 0,
       promotionAvailableItems: 2,
       promotionEligibleItems: 1,
+      promotionIneligibleItems: 1,
+      allItemsPriced: true,
+      hasPromotionAvailable: true,
+      hasPromotionEligible: true,
+      hasPromotionPendingQuantity: true,
     });
 
     expect(result.summary).not.toHaveProperty('promotion');

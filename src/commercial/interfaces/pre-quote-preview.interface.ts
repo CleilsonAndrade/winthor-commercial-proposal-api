@@ -57,6 +57,11 @@ export interface PreQuotePricingStatus {
   itemsWithoutPrice: number;
   promotionAvailableItems: number;
   promotionEligibleItems: number;
+  promotionIneligibleItems: number;
+  allItemsPriced: boolean;
+  hasPromotionAvailable: boolean;
+  hasPromotionEligible: boolean;
+  hasPromotionPendingQuantity: boolean;
 }
 
 export interface PreQuoteSummary {

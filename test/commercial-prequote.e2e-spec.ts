@@ -356,6 +356,11 @@ describe('CommercialPreQuoteController (e2e)', () => {
           itemsWithoutPrice: 0,
           promotionAvailableItems: 0,
           promotionEligibleItems: 0,
+          promotionIneligibleItems: 0,
+          allItemsPriced: true,
+          hasPromotionAvailable: false,
+          hasPromotionEligible: false,
+          hasPromotionPendingQuantity: false,
         },
       },
     });

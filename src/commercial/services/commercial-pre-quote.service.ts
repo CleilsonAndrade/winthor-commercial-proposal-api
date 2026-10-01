@@ -105,6 +105,22 @@ export class CommercialPreQuoteService {
   }
 
   private buildSummary(items: PreQuoteResolvedItem[]): PreQuoteSummary {
+    const itemsWithoutPrice = items.filter(
+      (item) =>
+        item.totals.regular.net === null || item.totals.regular.gross === null,
+    ).length;
+
+    const promotionAvailableItems = items.filter(
+      (item) => item.pricing.promotion.available,
+    ).length;
+
+    const promotionEligibleItems = items.filter(
+      (item) => item.pricing.promotion.eligible,
+    ).length;
+
+    const promotionIneligibleItems =
+      promotionAvailableItems - promotionEligibleItems;
+
     return {
       itemCount: items.length,
 
@@ -129,19 +145,18 @@ export class CommercialPreQuoteService {
       },
 
       pricingStatus: {
-        itemsWithoutPrice: items.filter(
-          (item) =>
-            item.totals.regular.net === null ||
-            item.totals.regular.gross === null,
-        ).length,
+        itemsWithoutPrice,
+        promotionAvailableItems,
+        promotionEligibleItems,
+        promotionIneligibleItems,
 
-        promotionAvailableItems: items.filter(
-          (item) => item.pricing.promotion.available,
-        ).length,
+        allItemsPriced: itemsWithoutPrice === 0,
 
-        promotionEligibleItems: items.filter(
-          (item) => item.pricing.promotion.eligible,
-        ).length,
+        hasPromotionAvailable: promotionAvailableItems > 0,
+
+        hasPromotionEligible: promotionEligibleItems > 0,
+
+        hasPromotionPendingQuantity: promotionIneligibleItems > 0,
       },
     };
   }
