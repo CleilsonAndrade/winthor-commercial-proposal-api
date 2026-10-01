@@ -263,12 +263,7 @@ export class CommercialFilterService {
          )
        ORDER BY
          CASE
-           WHEN R.NUMREGIAO IN (
-             300,302,308,310,314,321,324,327,
-             328,330,334,336,338,340,342,344,
-             346,348,350,352,355,357,362,367,
-             368,370,372
-           )
+           WHEN R.NUMREGIAO IN (${COMMERCIAL_UF_REGION_CODES_SQL})
            THEN 0
            ELSE 1
          END,

@@ -1,3 +1,4 @@
+import { COMMERCIAL_UF_REGION_CODES_SQL } from '../constants/commercial-region.constants';
 import { CatalogSearchCriteria } from '../interfaces/catalog-search-criteria.interface';
 import { CatalogQueryFilterBuilder } from './catalog-query-filter.builder';
 import { CatalogQueryBuilder } from './catalog-query.builder';
@@ -212,6 +213,18 @@ describe('CatalogQueryBuilder', () => {
     expect(sql).not.toContain(':TEMINNER');
 
     expect(binds).not.toHaveProperty('PRACA');
+  });
+
+  it('classifica região pelo código homologado, não pelo nome', () => {
+    const { sql } = builder.build(createCriteria());
+
+    expect(sql).toContain(
+      `WHEN T.NUMREGIAO IN (${COMMERCIAL_UF_REGION_CODES_SQL})`,
+    );
+
+    expect(sql).not.toContain("UPPER(RG.REGIAO) LIKE '%CAPITAL%'");
+
+    expect(sql).not.toContain("UPPER(TRIM(RG.REGIAO)) = 'DISTRITO FEDERAL'");
   });
 
   it('preserva exatamente as 36 regiões homologadas do motor v5', () => {

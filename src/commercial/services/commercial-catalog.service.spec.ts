@@ -126,7 +126,7 @@ describe('CommercialCatalogService', () => {
         MVA_PERCENT: 40,
         ST_VALUE: 3.5,
 
-        PRICE_REGION_CODE: 332,
+        PRICE_REGION_CODE: 368,
         PRICE_STATE: 'SP',
         PRICE_REGION_NAME: 'SAO PAULO',
         PRICE_REGION_TYPE: 'UF',
@@ -176,7 +176,7 @@ describe('CommercialCatalogService', () => {
         mvaPercent: 40,
         stValue: 3.5,
 
-        priceRegionCode: 332,
+        priceRegionCode: 368,
         priceState: 'SP',
         priceRegionName: 'SAO PAULO',
         priceRegionType: 'UF',
@@ -256,7 +256,7 @@ describe('CommercialCatalogService', () => {
         MVA_PERCENT: 0,
         ST_VALUE: 0,
 
-        PRICE_REGION_CODE: 332,
+        PRICE_REGION_CODE: 368,
         PRICE_STATE: 'SP',
         PRICE_REGION_NAME: 'SAO PAULO',
         PRICE_REGION_TYPE: 'UF',

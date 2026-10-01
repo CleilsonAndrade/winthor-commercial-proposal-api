@@ -1,4 +1,8 @@
 import { OracleService } from '../../infrastructure/oracle/oracle.service';
+import {
+  COMMERCIAL_HOMOLOGATED_REGION_CODES_SQL,
+  COMMERCIAL_UF_REGION_CODES_SQL,
+} from '../constants/commercial-region.constants';
 import { CommercialFilterService } from './commercial-filter.service';
 
 describe('CommercialFilterService', () => {
@@ -46,8 +50,13 @@ describe('CommercialFilterService', () => {
     expect(sql).toContain("NVL(PR.SITUACAO, 'A') <> 'I'");
     expect(sql).toContain("UPPER(TRIM(PR.PRACA)) NOT LIKE 'INAT%'");
     expect(sql).toContain("R.STATUS = 'A'");
-    expect(sql).toContain('R.NUMREGIAO IN');
-    expect(sql).toContain('300,302,308,310,314,321,324,327');
+    expect(sql).toContain(
+      `WHEN R.NUMREGIAO IN (${COMMERCIAL_UF_REGION_CODES_SQL})`,
+    );
+    expect(sql).toContain(
+      `AND R.NUMREGIAO IN (${COMMERCIAL_HOMOLOGATED_REGION_CODES_SQL})`,
+    );
+    expect(sql.split(COMMERCIAL_UF_REGION_CODES_SQL)).toHaveLength(3);
     expect(sql).not.toContain("UPPER(R.REGIAO) LIKE '%CAPITAL%'");
     expect(sql).toContain("UPPER(PR.PRACA) LIKE '%' || UPPER(:search) || '%'");
 
