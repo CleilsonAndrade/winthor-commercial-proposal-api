@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { OracleService } from '../../infrastructure/oracle/oracle.service';
 import { CatalogSearchDto } from '../dto/catalog-search.dto';
+import { CatalogSearchCriteria } from '../interfaces/catalog-search-criteria.interface';
 import {
   CatalogItem,
   CatalogLineStatus,
@@ -66,6 +67,31 @@ export class CommercialCatalogService {
 
   async search(input: CatalogSearchDto): Promise<CatalogItem[]> {
     const criteria = this.normalizer.normalize(input);
+
+    return this.executeSearch(criteria);
+  }
+
+  async searchByProductCodes(
+    input: CatalogSearchDto,
+    productCodes: number[],
+  ): Promise<CatalogItem[]> {
+    const normalizedProductCodes = [...new Set(productCodes)];
+
+    if (normalizedProductCodes.length === 0) {
+      return [];
+    }
+
+    const criteria = this.normalizer.normalize(input);
+
+    return this.executeSearch({
+      ...criteria,
+      productCodes: normalizedProductCodes,
+    });
+  }
+
+  private async executeSearch(
+    criteria: CatalogSearchCriteria,
+  ): Promise<CatalogItem[]> {
     const query = this.queryBuilder.build(criteria);
 
     const rows = await this.oracleService.query<CatalogRow>(

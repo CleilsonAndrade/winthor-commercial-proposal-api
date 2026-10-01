@@ -20,7 +20,12 @@ export class CommercialPreQuoteService {
       discountPercent: input.discountPercent,
     });
 
-    const catalog = await this.commercialCatalogService.search(catalogInput);
+    const productCodes = input.items.map((item) => item.productCode);
+
+    const catalog = await this.commercialCatalogService.searchByProductCodes(
+      catalogInput,
+      productCodes,
+    );
 
     const catalogByProductCode = new Map(
       catalog.map((product) => [product.productCode, product]),

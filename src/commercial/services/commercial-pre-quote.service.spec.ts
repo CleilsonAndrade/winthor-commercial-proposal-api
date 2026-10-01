@@ -44,7 +44,7 @@ describe('CommercialPreQuoteService', () => {
     const search = jest.fn();
 
     const commercialCatalogService = {
-      search,
+      searchByProductCodes: search,
     } as unknown as CommercialCatalogService;
 
     const service = new CommercialPreQuoteService(commercialCatalogService);
@@ -82,12 +82,17 @@ describe('CommercialPreQuoteService', () => {
 
     expect(search).toHaveBeenCalledTimes(1);
 
-    const [catalogInput] = search.mock.calls[0] as [CatalogSearchDto];
+    const [catalogInput, productCodes] = search.mock.calls[0] as [
+      CatalogSearchDto,
+      number[],
+    ];
 
     expect(catalogInput).toMatchObject({
       plazaCodes: [468],
       discountPercent: 10,
     });
+
+    expect(productCodes).toEqual([7625, 7624]);
 
     expect(result).toMatchObject({
       context: {

@@ -3,6 +3,12 @@ export type WinthorPresence = 'T' | 'S' | 'N';
 
 export interface CatalogSearchCriteria {
   plazaCodes: number[];
+
+  /**
+   * Restrição interna usada por consumidores do catálogo.
+   * Não faz parte do contrato HTTP de busca pública.
+   */
+  productCodes?: number[] | null;
   departmentCodes: number[] | null;
   sectionCodes: number[] | null;
   parentClientCodes: number[] | null;

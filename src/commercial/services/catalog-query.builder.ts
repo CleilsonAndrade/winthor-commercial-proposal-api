@@ -18,6 +18,10 @@ export class CatalogQueryBuilder {
       .map((predicate) => `    AND ${predicate}`)
       .join('\n');
 
+    const priceProductPredicate = filters.priceProductPredicate
+      ? `      AND ${filters.priceProductPredicate}\n`
+      : '';
+
     const sql = `SELECT
     P.DIRFOTOPROD AS PHOTO_PATH,
     P.CODPROD AS PRODUCT_CODE,
@@ -151,7 +155,7 @@ JOIN (
       ) AS RN
     FROM PCTABPR TP
     WHERE NVL(TP.EXCLUIDO, 'N') = 'N'
-      AND TP.NUMREGIAO IN (
+${priceProductPredicate}      AND TP.NUMREGIAO IN (
         SELECT PR.NUMREGIAO
         FROM PCPRACA PR
         JOIN PCREGIAO R

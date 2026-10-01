@@ -184,6 +184,23 @@ describe('CatalogQueryFilterBuilder', () => {
     });
   });
 
+  it('gera restrição interna de produtos sem expor filtro público', () => {
+    const result = builder.build(
+      createCriteria({
+        productCodes: [7624, 12345],
+      }),
+    );
+
+    expect(result.priceProductPredicate).toBe(
+      'TP.CODPROD IN (:product0, :product1)',
+    );
+
+    expect(result.binds).toMatchObject({
+      product0: 7624,
+      product1: 12345,
+    });
+  });
+
   it('rejeita critérios internos sem praça', () => {
     expect(() =>
       builder.build(

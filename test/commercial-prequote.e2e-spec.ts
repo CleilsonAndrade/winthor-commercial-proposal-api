@@ -213,6 +213,22 @@ describe('CommercialPreQuoteController (e2e)', () => {
     expect(oracleQuery).not.toHaveBeenCalled();
   });
 
+  it('/commercial/catalog/search não aceita productCodes como filtro público', async () => {
+    const token = await login();
+    const httpServer = app.getHttpServer() as App;
+
+    await request(httpServer)
+      .post('/commercial/catalog/search')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        plazaCodes: [468],
+        productCodes: [7624],
+      })
+      .expect(400);
+
+    expect(oracleQuery).not.toHaveBeenCalled();
+  });
+
   it('/commercial/pre-quotes/calculate resolve produto e preço pelo backend', async () => {
     const token = await login();
     const httpServer = app.getHttpServer() as App;
@@ -321,6 +337,7 @@ describe('CommercialPreQuoteController (e2e)', () => {
 
     expect(binds).toMatchObject({
       plaza0: 468,
+      product0: 7624,
       discountPercent: 10,
     });
   });

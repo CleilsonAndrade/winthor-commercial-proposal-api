@@ -21,6 +21,19 @@ export class CatalogQueryFilterBuilder {
 
     Object.assign(binds, plazas.binds);
 
+    const products = buildOracleInList(
+      'product',
+      criteria.productCodes ?? null,
+    );
+
+    const priceProductPredicate = products
+      ? `TP.CODPROD IN (${products.placeholders})`
+      : null;
+
+    if (products) {
+      Object.assign(binds, products.binds);
+    }
+
     this.addOptionalInList(
       productPredicates,
       binds,
@@ -116,6 +129,7 @@ export class CatalogQueryFilterBuilder {
 
     return {
       priceRegionPredicate,
+      priceProductPredicate,
       productPredicates,
       binds,
     };

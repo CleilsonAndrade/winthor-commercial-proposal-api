@@ -193,6 +193,36 @@ describe('CatalogQueryBuilder', () => {
     });
   });
 
+  it('restringe PCTABPR aos produtos solicitados internamente', () => {
+    const { sql, binds } = builder.build(
+      createCriteria({
+        productCodes: [7624, 12345],
+      }),
+    );
+
+    const predicate = 'TP.CODPROD IN (:product0, :product1)';
+
+    expect(sql).toContain(predicate);
+
+    expect(sql.split(predicate)).toHaveLength(2);
+
+    const priceTableIndex = sql.indexOf('FROM PCTABPR TP');
+    const productPredicateIndex = sql.indexOf(predicate);
+    const regionPredicateIndex = sql.indexOf(
+      'AND TP.NUMREGIAO IN',
+      productPredicateIndex,
+    );
+
+    expect(priceTableIndex).toBeGreaterThan(-1);
+    expect(productPredicateIndex).toBeGreaterThan(priceTableIndex);
+    expect(regionPredicateIndex).toBeGreaterThan(productPredicateIndex);
+
+    expect(binds).toMatchObject({
+      product0: 7624,
+      product1: 12345,
+    });
+  });
+
   it('não reintroduz sentinelas técnicos da Rotina 800', () => {
     const { sql, binds } = builder.build(createCriteria());
 

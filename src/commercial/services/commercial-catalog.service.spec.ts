@@ -300,4 +300,69 @@ describe('CommercialCatalogService', () => {
 
     expect(result.alert).toBe('SEM PRECO');
   });
+
+  it('restringe internamente a consulta aos códigos de produto solicitados', async () => {
+    const { service, query, normalize, build } = createSubject();
+
+    const input = Object.assign(new CatalogSearchDto(), {
+      plazaCodes: [468],
+    });
+
+    const criteria: CatalogSearchCriteria = {
+      plazaCodes: [468],
+      departmentCodes: null,
+      sectionCodes: null,
+      parentClientCodes: null,
+      clientCodes: null,
+      resale: null,
+      discountPercent: 0,
+      maxFinalPrice: 99999,
+      pricePresence: 'T',
+      innerBoxPresence: 'T',
+      minStock: 0,
+      purchaseMonths: 9999,
+    };
+
+    const preparedQuery: CatalogQuery = {
+      sql: 'SELECT CATALOGO FILTRADO FROM DUAL',
+      binds: {
+        plaza0: 468,
+        product0: 7624,
+        product1: 7625,
+      },
+    };
+
+    normalize.mockReturnValue(criteria);
+    build.mockReturnValue(preparedQuery);
+    query.mockResolvedValue([]);
+
+    await expect(
+      service.searchByProductCodes(input, [7624, 7625, 7624]),
+    ).resolves.toEqual([]);
+
+    expect(normalize).toHaveBeenCalledWith(input);
+
+    expect(build).toHaveBeenCalledWith({
+      ...criteria,
+      productCodes: [7624, 7625],
+    });
+
+    expect(query).toHaveBeenCalledWith(preparedQuery.sql, preparedQuery.binds);
+
+    expect(input).not.toHaveProperty('productCodes');
+  });
+
+  it('não executa Oracle quando a lista interna de produtos está vazia', async () => {
+    const { service, query, normalize, build } = createSubject();
+
+    const input = Object.assign(new CatalogSearchDto(), {
+      plazaCodes: [468],
+    });
+
+    await expect(service.searchByProductCodes(input, [])).resolves.toEqual([]);
+
+    expect(normalize).not.toHaveBeenCalled();
+    expect(build).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+  });
 });
