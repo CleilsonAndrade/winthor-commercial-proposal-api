@@ -341,6 +341,23 @@ describe('CommercialPreQuoteController (e2e)', () => {
           },
         },
       ],
+      summary: {
+        itemCount: 1,
+        totalQuantity: 12,
+        regular: {
+          net: 1102.2,
+          gross: 1173.84,
+        },
+        discount: {
+          net: 992.04,
+          gross: 1056.48,
+        },
+        pricingStatus: {
+          itemsWithoutPrice: 0,
+          promotionAvailableItems: 0,
+          promotionEligibleItems: 0,
+        },
+      },
     });
 
     expect(oracleQuery).toHaveBeenCalledTimes(1);

@@ -53,7 +53,22 @@ export interface PreQuoteResolvedItem {
   totals: PreQuoteTotals;
 }
 
+export interface PreQuotePricingStatus {
+  itemsWithoutPrice: number;
+  promotionAvailableItems: number;
+  promotionEligibleItems: number;
+}
+
+export interface PreQuoteSummary {
+  itemCount: number;
+  totalQuantity: number;
+  regular: PreQuoteLineTotals;
+  discount: PreQuoteLineTotals;
+  pricingStatus: PreQuotePricingStatus;
+}
+
 export interface PreQuotePreview {
   context: PreQuoteContext;
   items: PreQuoteResolvedItem[];
+  summary: PreQuoteSummary;
 }

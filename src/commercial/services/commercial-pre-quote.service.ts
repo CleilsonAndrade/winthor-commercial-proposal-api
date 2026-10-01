@@ -5,6 +5,8 @@ import { CatalogItem } from '../interfaces/catalog-item.interface';
 import {
   PreQuotePreview,
   PreQuotePricing,
+  PreQuoteResolvedItem,
+  PreQuoteSummary,
   PreQuoteTotals,
 } from '../interfaces/pre-quote-preview.interface';
 import { CommercialCatalogService } from './commercial-catalog.service';
@@ -44,24 +46,26 @@ export class CommercialPreQuoteService {
       });
     }
 
+    const items: PreQuoteResolvedItem[] = input.items.map((item) => {
+      const product = catalogByProductCode.get(item.productCode)!;
+
+      const pricing = this.buildPricing(product, item.quantity);
+
+      return {
+        quantity: item.quantity,
+        product,
+        pricing,
+        totals: this.buildTotals(pricing, item.quantity),
+      };
+    });
+
     return {
       context: {
         plazaCodes: [...input.plazaCodes],
         discountPercent: input.discountPercent,
       },
-
-      items: input.items.map((item) => {
-        const product = catalogByProductCode.get(item.productCode)!;
-
-        const pricing = this.buildPricing(product, item.quantity);
-
-        return {
-          quantity: item.quantity,
-          product,
-          pricing,
-          totals: this.buildTotals(pricing, item.quantity),
-        };
-      }),
+      items,
+      summary: this.buildSummary(items),
     };
   }
 
@@ -98,6 +102,65 @@ export class CommercialPreQuoteService {
         grossUnitPrice: promotionAvailable ? product.promotionGrossPrice : null,
       },
     };
+  }
+
+  private buildSummary(items: PreQuoteResolvedItem[]): PreQuoteSummary {
+    return {
+      itemCount: items.length,
+
+      totalQuantity: items.reduce((total, item) => total + item.quantity, 0),
+
+      regular: {
+        net: this.sumCompleteLineTotals(
+          items.map((item) => item.totals.regular.net),
+        ),
+        gross: this.sumCompleteLineTotals(
+          items.map((item) => item.totals.regular.gross),
+        ),
+      },
+
+      discount: {
+        net: this.sumCompleteLineTotals(
+          items.map((item) => item.totals.discount.net),
+        ),
+        gross: this.sumCompleteLineTotals(
+          items.map((item) => item.totals.discount.gross),
+        ),
+      },
+
+      pricingStatus: {
+        itemsWithoutPrice: items.filter(
+          (item) =>
+            item.totals.regular.net === null ||
+            item.totals.regular.gross === null,
+        ).length,
+
+        promotionAvailableItems: items.filter(
+          (item) => item.pricing.promotion.available,
+        ).length,
+
+        promotionEligibleItems: items.filter(
+          (item) => item.pricing.promotion.eligible,
+        ).length,
+      },
+    };
+  }
+
+  private sumCompleteLineTotals(values: Array<number | null>): number | null {
+    const completeValues = values.filter(
+      (value): value is number => value !== null,
+    );
+
+    if (completeValues.length !== values.length) {
+      return null;
+    }
+
+    const totalInCents = completeValues.reduce(
+      (total, value) => total + Math.round(value * 100),
+      0,
+    );
+
+    return totalInCents / 100;
   }
 
   private buildTotals(

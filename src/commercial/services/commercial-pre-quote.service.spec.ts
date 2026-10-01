@@ -420,4 +420,145 @@ describe('CommercialPreQuoteService', () => {
       },
     });
   });
+
+  it('resume quantidade e totais completos da cesta', async () => {
+    const { service, search } = createSubject();
+
+    const product7624 = createCatalogItem(7624, 91.85);
+    const product7625 = createCatalogItem(7625, 91.85);
+
+    search.mockResolvedValue([product7624, product7625]);
+
+    const input = Object.assign(new PreQuoteCalculateDto(), {
+      plazaCodes: [468],
+      discountPercent: 10,
+      items: [
+        {
+          productCode: 7624,
+          quantity: 12,
+        },
+        {
+          productCode: 7625,
+          quantity: 6,
+        },
+      ],
+    });
+
+    const result = await service.calculate(input);
+
+    expect(result.summary).toEqual({
+      itemCount: 2,
+      totalQuantity: 18,
+      regular: {
+        net: 1653.3,
+        gross: 1653.3,
+      },
+      discount: {
+        net: 1487.88,
+        gross: 1487.88,
+      },
+      pricingStatus: {
+        itemsWithoutPrice: 0,
+        promotionAvailableItems: 0,
+        promotionEligibleItems: 0,
+      },
+    });
+  });
+
+  it('mantém totais gerais null quando existe item sem preço', async () => {
+    const { service, search } = createSubject();
+
+    const pricedProduct = createCatalogItem(7624, 100);
+    const unpricedProduct = createCatalogItem(7625, null);
+
+    search.mockResolvedValue([pricedProduct, unpricedProduct]);
+
+    const input = Object.assign(new PreQuoteCalculateDto(), {
+      plazaCodes: [468],
+      items: [
+        {
+          productCode: 7624,
+          quantity: 2,
+        },
+        {
+          productCode: 7625,
+          quantity: 3,
+        },
+      ],
+    });
+
+    const result = await service.calculate(input);
+
+    expect(result.summary).toEqual({
+      itemCount: 2,
+      totalQuantity: 5,
+      regular: {
+        net: null,
+        gross: null,
+      },
+      discount: {
+        net: null,
+        gross: null,
+      },
+      pricingStatus: {
+        itemsWithoutPrice: 1,
+        promotionAvailableItems: 0,
+        promotionEligibleItems: 0,
+      },
+    });
+  });
+
+  it('contabiliza promoções disponíveis e elegíveis sem gerar total promocional geral', async () => {
+    const { service, search } = createSubject();
+
+    const eligiblePromotion = createCatalogItem(7624, 100, {
+      percent: 20,
+      minimumQuantity: 6,
+      netPrice: 80,
+      grossPrice: 84.8,
+    });
+
+    const ineligiblePromotion = createCatalogItem(7625, 50, {
+      percent: 10,
+      minimumQuantity: 10,
+      netPrice: 45,
+      grossPrice: 47.7,
+    });
+
+    const regularProduct = createCatalogItem(7626, 25);
+
+    search.mockResolvedValue([
+      eligiblePromotion,
+      ineligiblePromotion,
+      regularProduct,
+    ]);
+
+    const input = Object.assign(new PreQuoteCalculateDto(), {
+      plazaCodes: [468],
+      items: [
+        {
+          productCode: 7624,
+          quantity: 6,
+        },
+        {
+          productCode: 7625,
+          quantity: 5,
+        },
+        {
+          productCode: 7626,
+          quantity: 2,
+        },
+      ],
+    });
+
+    const result = await service.calculate(input);
+
+    expect(result.summary.pricingStatus).toEqual({
+      itemsWithoutPrice: 0,
+      promotionAvailableItems: 2,
+      promotionEligibleItems: 1,
+    });
+
+    expect(result.summary).not.toHaveProperty('promotion');
+  });
 });
