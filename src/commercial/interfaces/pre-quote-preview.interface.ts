@@ -31,10 +31,26 @@ export interface PreQuotePricing {
   promotion: PreQuotePromotionPricing;
 }
 
+export interface PreQuoteLineTotals {
+  net: number | null;
+  gross: number | null;
+}
+
+export interface PreQuotePromotionTotals extends PreQuoteLineTotals {
+  eligible: boolean;
+}
+
+export interface PreQuoteTotals {
+  regular: PreQuoteLineTotals;
+  discount: PreQuoteLineTotals;
+  promotion: PreQuotePromotionTotals;
+}
+
 export interface PreQuoteResolvedItem {
   quantity: number;
   product: CatalogItem;
   pricing: PreQuotePricing;
+  totals: PreQuoteTotals;
 }
 
 export interface PreQuotePreview {

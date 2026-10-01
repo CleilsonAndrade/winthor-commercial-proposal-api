@@ -324,6 +324,21 @@ describe('CommercialPreQuoteController (e2e)', () => {
               grossUnitPrice: null,
             },
           },
+          totals: {
+            regular: {
+              net: 1102.2,
+              gross: 1173.84,
+            },
+            discount: {
+              net: 992.04,
+              gross: 1056.48,
+            },
+            promotion: {
+              eligible: false,
+              net: null,
+              gross: null,
+            },
+          },
         },
       ],
     });

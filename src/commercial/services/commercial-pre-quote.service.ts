@@ -5,6 +5,7 @@ import { CatalogItem } from '../interfaces/catalog-item.interface';
 import {
   PreQuotePreview,
   PreQuotePricing,
+  PreQuoteTotals,
 } from '../interfaces/pre-quote-preview.interface';
 import { CommercialCatalogService } from './commercial-catalog.service';
 
@@ -52,10 +53,13 @@ export class CommercialPreQuoteService {
       items: input.items.map((item) => {
         const product = catalogByProductCode.get(item.productCode)!;
 
+        const pricing = this.buildPricing(product, item.quantity);
+
         return {
           quantity: item.quantity,
           product,
-          pricing: this.buildPricing(product, item.quantity),
+          pricing,
+          totals: this.buildTotals(pricing, item.quantity),
         };
       }),
     };
@@ -94,5 +98,49 @@ export class CommercialPreQuoteService {
         grossUnitPrice: promotionAvailable ? product.promotionGrossPrice : null,
       },
     };
+  }
+
+  private buildTotals(
+    pricing: PreQuotePricing,
+    quantity: number,
+  ): PreQuoteTotals {
+    return {
+      regular: {
+        net: this.calculateLineTotal(pricing.regular.netUnitPrice, quantity),
+        gross: this.calculateLineTotal(
+          pricing.regular.grossUnitPrice,
+          quantity,
+        ),
+      },
+
+      discount: {
+        net: this.calculateLineTotal(pricing.discount.netUnitPrice, quantity),
+        gross: this.calculateLineTotal(
+          pricing.discount.grossUnitPrice,
+          quantity,
+        ),
+      },
+
+      promotion: {
+        eligible: pricing.promotion.eligible,
+        net: pricing.promotion.eligible
+          ? this.calculateLineTotal(pricing.promotion.netUnitPrice, quantity)
+          : null,
+        gross: pricing.promotion.eligible
+          ? this.calculateLineTotal(pricing.promotion.grossUnitPrice, quantity)
+          : null,
+      },
+    };
+  }
+
+  private calculateLineTotal(
+    unitPrice: number | null,
+    quantity: number,
+  ): number | null {
+    if (unitPrice === null) {
+      return null;
+    }
+
+    return Math.round((unitPrice * quantity + Number.EPSILON) * 100) / 100;
   }
 }
