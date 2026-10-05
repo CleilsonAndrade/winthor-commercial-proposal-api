@@ -378,4 +378,196 @@ describe('CommercialPreQuoteController (e2e)', () => {
       discountPercent: 10,
     });
   });
+
+  it('/commercial/proposals/preview retorna 401 sem JWT', async () => {
+    const httpServer = app.getHttpServer() as App;
+
+    await request(httpServer)
+      .post('/commercial/proposals/preview')
+      .send({
+        plazaCodes: [468],
+        items: [
+          {
+            productCode: 7624,
+            quantity: 12,
+          },
+        ],
+      })
+      .expect(401);
+
+    expect(oracleQuery).not.toHaveBeenCalled();
+  });
+
+  it('/commercial/proposals/preview retorna 400 para body inválido', async () => {
+    const token = await login();
+    const httpServer = app.getHttpServer() as App;
+
+    await request(httpServer)
+      .post('/commercial/proposals/preview')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        plazaCodes: [468],
+        items: [],
+      })
+      .expect(400);
+
+    expect(oracleQuery).not.toHaveBeenCalled();
+  });
+
+  it('/commercial/proposals/preview organiza os valores para apresentação', async () => {
+    const token = await login();
+    const httpServer = app.getHttpServer() as App;
+
+    oracleQuery.mockResolvedValue([catalogRow]);
+
+    const response = await request(httpServer)
+      .post('/commercial/proposals/preview')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        plazaCodes: [468],
+        discountPercent: 10,
+        items: [
+          {
+            productCode: 7624,
+            quantity: 12,
+          },
+        ],
+      })
+      .expect(200);
+
+    const body: unknown = response.body;
+
+    expect(body).toEqual({
+      context: {
+        plazaCodes: [468],
+        discountPercent: 10,
+      },
+
+      items: [
+        {
+          product: {
+            productCode: 7624,
+            description: 'AD21F1 ANDADOR INFANTIL AZUL',
+            photoAvailable: false,
+
+            packaging: {
+              multipleQuantity: 1,
+              innerBoxQuantity: 6,
+              masterBoxQuantity: 24,
+            },
+
+            taxes: {
+              ipiPercent: 5,
+              ipiValue: 2.5,
+              mvaPercent: 40,
+              stValue: 3.47,
+            },
+
+            priceRegion: {
+              code: 368,
+              state: 'SP',
+              name: 'SAO PAULO',
+              type: 'UF',
+            },
+
+            availableStock: 100,
+            alert: '',
+
+            brand: 'TESTE',
+            lineStatus: 'EM LINHA',
+
+            departmentCode: 600,
+            departmentName: 'BRINQUEDOS',
+            sectionName: 'TESTE',
+            salesCurve: 'A',
+
+            resale: 'S',
+          },
+
+          quantity: 12,
+
+          tablePrice: {
+            unit: {
+              net: 91.85,
+              gross: 97.82,
+            },
+            total: {
+              net: 1102.2,
+              gross: 1173.84,
+            },
+          },
+
+          discountedPrice: {
+            percent: 10,
+            unit: {
+              net: 82.67,
+              gross: 88.04,
+            },
+            total: {
+              net: 992.04,
+              gross: 1056.48,
+            },
+          },
+
+          promotion: {
+            available: false,
+            eligible: false,
+            minimumQuantity: null,
+            percent: 0,
+            start: null,
+            end: null,
+
+            unit: {
+              net: null,
+              gross: null,
+            },
+
+            total: {
+              net: null,
+              gross: null,
+            },
+          },
+        },
+      ],
+
+      summary: {
+        itemCount: 1,
+        totalQuantity: 12,
+
+        tablePrice: {
+          net: 1102.2,
+          gross: 1173.84,
+        },
+
+        discountedPrice: {
+          net: 992.04,
+          gross: 1056.48,
+        },
+
+        pricingStatus: {
+          itemsWithoutPrice: 0,
+          promotionAvailableItems: 0,
+          promotionEligibleItems: 0,
+          promotionIneligibleItems: 0,
+          allItemsPriced: true,
+          hasPromotionAvailable: false,
+          hasPromotionEligible: false,
+          hasPromotionPendingQuantity: false,
+        },
+      },
+    });
+
+    expect(oracleQuery).toHaveBeenCalledTimes(1);
+
+    const [, binds] = oracleQuery.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+
+    expect(binds).toMatchObject({
+      plaza0: 468,
+      product0: 7624,
+      discountPercent: 10,
+    });
+  });
 });
