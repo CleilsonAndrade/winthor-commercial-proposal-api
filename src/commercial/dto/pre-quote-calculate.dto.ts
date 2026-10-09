@@ -20,6 +20,12 @@ export class PreQuoteItemDto {
   @IsNumber()
   @IsPositive()
   quantity!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  discountPercent?: number;
 }
 
 export class PreQuoteCalculateDto {

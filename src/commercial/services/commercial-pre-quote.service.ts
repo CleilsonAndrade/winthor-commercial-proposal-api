@@ -49,7 +49,11 @@ export class CommercialPreQuoteService {
     const items: PreQuoteResolvedItem[] = input.items.map((item) => {
       const product = catalogByProductCode.get(item.productCode)!;
 
-      const pricing = this.buildPricing(product, item.quantity);
+      const pricing = this.buildPricing(
+        product,
+        item.quantity,
+        item.discountPercent,
+      );
 
       return {
         quantity: item.quantity,
@@ -72,7 +76,22 @@ export class CommercialPreQuoteService {
   private buildPricing(
     product: CatalogItem,
     quantity: number,
+    itemDiscountPercent?: number,
   ): PreQuotePricing {
+    const additionalDiscountPercent = itemDiscountPercent ?? 0;
+    const appliedDiscountPercent =
+      Math.round(
+        (product.discountPercent + additionalDiscountPercent) * 1_000_000,
+      ) / 1_000_000;
+
+    if (appliedDiscountPercent > 100) {
+      throw new BadRequestException(
+        `A soma dos descontos do produto ${product.productCode} ultrapassa 100%.`,
+      );
+    }
+
+    const hasSpecificDiscount = additionalDiscountPercent > 0;
+
     const promotionAvailable =
       product.promotionPercent > 0 && product.promotionMinQuantity !== null;
 
@@ -86,9 +105,19 @@ export class CommercialPreQuoteService {
       },
 
       discount: {
-        percent: product.discountPercent,
-        netUnitPrice: product.discountedNetPrice,
-        grossUnitPrice: product.discountedGrossPrice,
+        percent: appliedDiscountPercent,
+        netUnitPrice: hasSpecificDiscount
+          ? this.calculateDiscountedUnitPrice(
+              product.netPrice,
+              appliedDiscountPercent,
+            )
+          : product.discountedNetPrice,
+        grossUnitPrice: hasSpecificDiscount
+          ? this.calculateDiscountedUnitPrice(
+              product.grossPrice,
+              appliedDiscountPercent,
+            )
+          : product.discountedGrossPrice,
       },
 
       promotion: {
@@ -102,6 +131,19 @@ export class CommercialPreQuoteService {
         grossUnitPrice: promotionAvailable ? product.promotionGrossPrice : null,
       },
     };
+  }
+
+  private calculateDiscountedUnitPrice(
+    price: number | null,
+    percent: number,
+  ): number | null {
+    if (price === null) {
+      return null;
+    }
+
+    return (
+      Math.round((price * (1 - percent / 100) + Number.EPSILON) * 100) / 100
+    );
   }
 
   private buildSummary(items: PreQuoteResolvedItem[]): PreQuoteSummary {
