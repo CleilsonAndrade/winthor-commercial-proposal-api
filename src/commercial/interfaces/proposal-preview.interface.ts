@@ -4,10 +4,14 @@ import {
   CatalogResale,
 } from './catalog-item.interface';
 import { PreQuotePricingStatus } from './pre-quote-preview.interface';
+import type { ClientOption } from './client-option.interface';
+import type { ParentClientOption } from './parent-client-option.interface';
 
 export interface ProposalPreviewContext {
   plazaCodes: number[];
   discountPercent: number;
+  recipient?: ClientOption;
+  parentClients?: ParentClientOption[];
 }
 
 export interface ProposalPriceValues {

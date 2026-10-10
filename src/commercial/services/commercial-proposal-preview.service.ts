@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PreQuoteCalculateDto } from '../dto/pre-quote-calculate.dto';
 import {
   ProposalPreview,
@@ -6,20 +6,56 @@ import {
 } from '../interfaces/proposal-preview.interface';
 import { PreQuoteResolvedItem } from '../interfaces/pre-quote-preview.interface';
 import { CommercialPreQuoteService } from './commercial-pre-quote.service';
+import { CommercialFilterService } from './commercial-filter.service';
 
 @Injectable()
 export class CommercialProposalPreviewService {
   constructor(
     private readonly commercialPreQuoteService: CommercialPreQuoteService,
+    private readonly commercialFilterService: CommercialFilterService,
   ) {}
 
   async preview(input: PreQuoteCalculateDto): Promise<ProposalPreview> {
+    const recipient =
+      input.clientCode == null
+        ? null
+        : await this.commercialFilterService.findClientByCode(input.clientCode);
+
+    if (input.clientCode != null && !recipient) {
+      throw new BadRequestException(
+        `Cliente ${input.clientCode} não encontrado ou excluído no WinThor.`,
+      );
+    }
+
+    const parentClients = input.parentClientCodes?.length
+      ? await this.commercialFilterService.findParentClientsByCodes(
+          input.parentClientCodes,
+        )
+      : [];
+
+    if (input.parentClientCodes) {
+      const resolvedCodes = new Set(parentClients.map((client) => client.code));
+
+      const missingCodes = input.parentClientCodes.filter(
+        (code) => !resolvedCodes.has(code),
+      );
+
+      if (missingCodes.length > 0) {
+        throw new BadRequestException(
+          'Rede(s) não encontrada(s) ou sem lojas vinculadas: ' +
+            missingCodes.join(', '),
+        );
+      }
+    }
+
     const preQuote = await this.commercialPreQuoteService.calculate(input);
 
     return {
       context: {
         plazaCodes: [...preQuote.context.plazaCodes],
         discountPercent: preQuote.context.discountPercent,
+        ...(recipient ? { recipient } : {}),
+        ...(parentClients.length > 0 ? { parentClients } : {}),
       },
 
       items: preQuote.items.map((item) => this.buildItem(item)),

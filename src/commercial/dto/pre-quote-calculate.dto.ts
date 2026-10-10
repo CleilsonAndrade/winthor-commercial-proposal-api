@@ -37,6 +37,19 @@ export class PreQuoteCalculateDto {
   plazaCodes!: number[];
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  clientCode?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  parentClientCodes?: number[];
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   @Max(100)

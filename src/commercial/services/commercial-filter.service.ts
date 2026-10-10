@@ -108,6 +108,39 @@ export class CommercialFilterService {
     }));
   }
 
+  async findClientByCode(clientCode: number): Promise<ClientOption | null> {
+    const rows = await this.oracleService.query<ClientRow>(
+      `SELECT
+         C.CODCLI AS CODE,
+         C.CLIENTE AS NAME,
+         C.FANTASIA AS TRADE_NAME,
+         C.CGCENT AS DOCUMENT,
+         C.MUNICENT AS CITY,
+         C.BLOQUEIO AS BLOCKED,
+         NVL(C.CODCLIPRINC, C.CODCLI) AS NETWORK_CODE
+       FROM PCCLIENT C
+       WHERE C.CODCLI = :clientCode
+         AND C.DTEXCLUSAO IS NULL`,
+      { clientCode },
+    );
+
+    const row = rows[0];
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      code: row.CODE,
+      name: row.NAME,
+      tradeName: row.TRADE_NAME,
+      document: row.DOCUMENT,
+      city: row.CITY,
+      blocked: row.BLOCKED,
+      networkCode: row.NETWORK_CODE,
+    };
+  }
+
   async findDepartments(search?: string): Promise<DepartmentOption[]> {
     const normalizedSearch = search?.trim() || null;
 
@@ -182,6 +215,75 @@ export class CommercialFilterService {
       departmentCode: row.DEPARTMENT_CODE,
       departmentName: row.DEPARTMENT_NAME,
     }));
+  }
+
+  async findParentClientsByCodes(
+    codes: readonly number[],
+  ): Promise<ParentClientOption[]> {
+    if (codes.length === 0) {
+      return [];
+    }
+
+    const resolved = new Map<number, ParentClientOption>();
+
+    // Evita ultrapassar o limite de expressões IN do Oracle.
+    for (let offset = 0; offset < codes.length; offset += 900) {
+      const group = codes.slice(offset, offset + 900);
+
+      const binds: Record<string, number> = {};
+      const placeholders = group.map((code, index) => {
+        const name = `parentCode${index}`;
+        binds[name] = code;
+        return `:${name}`;
+      });
+
+      const rows = await this.oracleService.query<ParentClientRow>(
+        `WITH NETWORK AS (
+           SELECT
+             NVL(F.CODCLIPRINC, F.CODCLI) AS PARENT_CODE,
+             COUNT(*) AS STORE_COUNT,
+             SUM(
+               CASE
+                 WHEN F.CODCLI <> NVL(F.CODCLIPRINC, F.CODCLI)
+                 THEN 1
+                 ELSE 0
+               END
+             ) AS CHILD_COUNT
+           FROM PCCLIENT F
+           WHERE F.DTEXCLUSAO IS NULL
+           GROUP BY NVL(F.CODCLIPRINC, F.CODCLI)
+         )
+         SELECT
+           CL.CODCLI AS CODE,
+           CL.CLIENTE AS NAME,
+           CL.FANTASIA AS TRADE_NAME,
+           CL.CGCENT AS DOCUMENT,
+           N.STORE_COUNT
+         FROM PCCLIENT CL
+         JOIN NETWORK N
+           ON N.PARENT_CODE = CL.CODCLI
+          AND N.CHILD_COUNT > 0
+         WHERE CL.DTEXCLUSAO IS NULL
+           AND CL.CODCLI IN (${placeholders.join(', ')})
+         ORDER BY CL.CODCLI`,
+        binds,
+      );
+
+      for (const row of rows) {
+        resolved.set(row.CODE, {
+          code: row.CODE,
+          name: row.NAME,
+          tradeName: row.TRADE_NAME,
+          document: row.DOCUMENT,
+          storeCount: row.STORE_COUNT,
+        });
+      }
+    }
+
+    // Preserva a ordem das redes selecionadas no frontend.
+    return codes
+      .map((code) => resolved.get(code))
+      .filter((client): client is ParentClientOption => client !== undefined);
   }
 
   async findParentClients(search?: string): Promise<ParentClientOption[]> {

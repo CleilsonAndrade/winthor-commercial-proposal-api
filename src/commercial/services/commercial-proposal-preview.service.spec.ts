@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { PreQuoteCalculateDto } from '../dto/pre-quote-calculate.dto';
 import { PreQuotePreview } from '../interfaces/pre-quote-preview.interface';
 import { CommercialPreQuoteService } from './commercial-pre-quote.service';
+import { CommercialFilterService } from './commercial-filter.service';
 import { CommercialProposalPreviewService } from './commercial-proposal-preview.service';
 
 describe('CommercialProposalPreviewService', () => {
@@ -12,7 +13,14 @@ describe('CommercialProposalPreviewService', () => {
       calculate,
     } as unknown as CommercialPreQuoteService;
 
-    const service = new CommercialProposalPreviewService(preQuoteService);
+    const filterService = {
+      findClientByCode: jest.fn(),
+    } as unknown as CommercialFilterService;
+
+    const service = new CommercialProposalPreviewService(
+      preQuoteService,
+      filterService,
+    );
 
     const input = Object.assign(new PreQuoteCalculateDto(), {
       plazaCodes: [468],
