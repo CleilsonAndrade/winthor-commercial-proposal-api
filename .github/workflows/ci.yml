@@ -64,3 +64,35 @@ jobs:
         run: |
           test -f dist/main.js
           node --check dist/main.js
+
+          node --check ecosystem.config.js
+
+      - name: Prepare deployment artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p deployment-artifact
+
+          cp -a dist deployment-artifact/
+          cp package.json deployment-artifact/
+          cp package-lock.json deployment-artifact/
+          cp ecosystem.config.js deployment-artifact/
+
+          test -f deployment-artifact/dist/main.js
+          test -f deployment-artifact/package.json
+          test -f deployment-artifact/package-lock.json
+          test -f deployment-artifact/ecosystem.config.js
+
+          node --check deployment-artifact/dist/main.js
+          node --check deployment-artifact/ecosystem.config.js
+
+      - name: Upload approved deployment artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v7
+        with:
+          name: winthor-commercial-proposal-api-production
+          path: deployment-artifact/
+          if-no-files-found: error
+          retention-days: 3
