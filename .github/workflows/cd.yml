@@ -1,0 +1,348 @@
+name: CD - Controlled Production Deploy
+
+# Deploy automatico apos CI aprovado na branch master.
+# Deploy manual permanece disponivel para execucoes controladas.
+on:
+  workflow_run:
+    workflows: ['CI - Commercial Proposal API']
+    types:
+      - completed
+    branches:
+      - master
+
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: 'ID da execucao aprovada do CI (push na master)'
+        required: true
+        type: number
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: winthor-commercial-proposal-api-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy validated CI artifact
+    if: >-
+      ${{
+        (github.event_name == 'workflow_run' &&
+         github.event.workflow_run.conclusion == 'success' &&
+         github.event.workflow_run.event == 'push' &&
+         github.event.workflow_run.head_branch == 'master' &&
+         github.event.workflow_run.head_repository.full_name == github.repository) ||
+        (github.event_name == 'workflow_dispatch' &&
+         github.ref == 'refs/heads/master')
+      }}
+    runs-on: [self-hosted, linux, x64, winthor-commercial-proposal-api-deploy]
+    environment:
+      name: production
+    timeout-minutes: 25
+    env:
+      APP_NAME: winthor-commercial-proposal-api
+      APP_ROOT: /home/admin/apps/winthor-commercial-proposal-api
+      DATA_DIR: /home/admin/dados/winthor-commercial-proposal-api
+      APP_PORT: '3008'
+
+    steps:
+      - name: Validate CI run provenance
+        uses: actions/github-script@v8
+        env:
+          CI_RUN_ID: ${{ github.event.workflow_run.id || inputs.ci_run_id }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runId = Number(process.env.CI_RUN_ID);
+            if (!Number.isSafeInteger(runId) || runId <= 0) {
+              throw new Error('ID da execucao do CI invalido');
+            }
+
+            const [runResult, ciWorkflow, masterBranch] = await Promise.all([
+              github.rest.actions.getWorkflowRun({ owner, repo, run_id: runId }),
+              github.rest.actions.getWorkflow({ owner, repo, workflow_id: 'ci.yml' }),
+              github.rest.repos.getBranch({ owner, repo, branch: 'master' }),
+            ]);
+            const run = runResult.data;
+            const expectedRepo = `${owner}/${repo}`;
+            if (
+              run.workflow_id !== ciWorkflow.data.id ||
+              run.event !== 'push' ||
+              run.head_branch !== 'master' ||
+              run.head_repository?.full_name !== expectedRepo ||
+              run.repository?.full_name !== expectedRepo ||
+              run.status !== 'completed' ||
+              run.conclusion !== 'success' ||
+              run.head_sha !== masterBranch.data.commit.sha
+            ) {
+              throw new Error('CI nao aprovado, origem invalida ou commit diferente da master atual');
+            }
+
+            core.exportVariable('CI_RUN_ID', String(runId));
+            core.exportVariable('CI_SHA', run.head_sha);
+            core.info(`CI validado: execucao ${runId}, commit ${run.head_sha}`);
+
+      - name: Download approved build artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: winthor-commercial-proposal-api-production
+          path: deployment-artifact
+          run-id: ${{ github.event.workflow_run.id || inputs.ci_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Validate runtime and deployment paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "$APP_ROOT/releases"
+          test -d "$DATA_DIR"
+          test "$(id -un)" = 'admin'
+          test "$(node -p 'process.versions.node.split(".")[0]')" = '22'
+          command -v npm
+          command -v pm2
+          command -v curl
+          node --version
+          npm --version
+          pm2 --version
+
+          test -f deployment-artifact/dist/main.js
+          test -f deployment-artifact/package.json
+          test -f deployment-artifact/package-lock.json
+          test -f deployment-artifact/ecosystem.config.js
+          node --check deployment-artifact/dist/main.js
+          node --check deployment-artifact/ecosystem.config.js
+
+          if [ -e "$APP_ROOT/current" ] && [ ! -L "$APP_ROOT/current" ]; then
+            echo 'ERRO: current existe, mas nao e um link simbolico'
+            exit 1
+          fi
+
+          previous=''
+          if [ -L "$APP_ROOT/current" ]; then
+            previous="$(readlink -f "$APP_ROOT/current")"
+            case "$previous" in
+              "$APP_ROOT"/releases/*) ;;
+              *) echo 'ERRO: current aponta para fora das releases'; exit 1 ;;
+            esac
+            test -f "$previous/dist/main.js"
+            test -f "$previous/ecosystem.config.js"
+          elif pm2 describe "$APP_NAME" >/dev/null 2>&1; then
+            echo 'ERRO: PM2 ja tem esta aplicacao, mas nao existe current para rollback'
+            exit 1
+          fi
+          printf 'PREVIOUS_RELEASE=%s\n' "$previous" >> "$GITHUB_ENV"
+
+          release="$APP_ROOT/releases/$CI_RUN_ID"
+          if [ -e "$release" ] || [ -L "$release" ]; then
+            echo 'ERRO: identificador de release ja existe; nao sobrescrever'
+            exit 1
+          fi
+          printf 'RELEASE_DIR=%s\n' "$release" >> "$GITHUB_ENV"
+          echo "Preparacao aprovada: release $CI_RUN_ID ($CI_SHA)"
+
+      - name: Initialize persistent environment if absent
+        shell: bash
+        env:
+          ENV_FILE_CONTENTS: ${{ secrets.ENV_FILE_CONTENTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          env_file="$DATA_DIR/.env"
+
+          if [ ! -e "$env_file" ]; then
+            if [ -z "${ENV_FILE_CONTENTS:-}" ]; then
+              echo 'ERRO: segredo ENV_FILE_CONTENTS ausente ou vazio'
+              exit 1
+            fi
+            temp_env="$(mktemp "$DATA_DIR/.env.XXXXXX")"
+            printf '%s\n' "$ENV_FILE_CONTENTS" > "$temp_env"
+            chmod 600 "$temp_env"
+            mv -T "$temp_env" "$env_file"
+            echo 'Configuracao persistente criada (valores nao exibidos)'
+          else
+            test -f "$env_file"
+            test ! -L "$env_file"
+            echo 'Configuracao persistente existente preservada'
+          fi
+
+          chmod 600 "$env_file"
+          for key in DB_HOST DB_PORT DB_USERNAME DB_PASSWORD DB_SERVICE_NAME JWT_SECRET JWT_EXPIRATION_TIME WINTHOR_IMAGE_ROOT; do
+            if ! grep -Eq "^${key}=.+" "$env_file"; then
+              echo "ERRO: variavel obrigatoria ausente ou vazia: $key"
+              exit 1
+            fi
+          done
+          echo 'Variaveis obrigatorias presentes (sem exibir valores)'
+
+      - name: Prepare isolated release
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          install -d -m 700 "$RELEASE_DIR"
+          cp -a deployment-artifact/dist "$RELEASE_DIR/dist"
+          install -m 644 deployment-artifact/package.json "$RELEASE_DIR/package.json"
+          install -m 644 deployment-artifact/package-lock.json "$RELEASE_DIR/package-lock.json"
+          install -m 644 deployment-artifact/ecosystem.config.js "$RELEASE_DIR/ecosystem.config.js"
+          ln -s "$DATA_DIR/.env" "$RELEASE_DIR/.env"
+          test -f "$RELEASE_DIR/.env"
+          cd "$RELEASE_DIR"
+          npm ci --omit=dev --ignore-scripts
+          test -f dist/main.js
+
+      - name: Validate persistent image directory
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Executado antes de interromper a API anterior.
+          cd "$RELEASE_DIR"
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const dotenv = require('dotenv');
+
+          const dataDir = process.env.DATA_DIR;
+          const appRoot = process.env.APP_ROOT;
+
+          if (!dataDir || !appRoot) {
+            throw new Error('Diretorios de deploy ausentes');
+          }
+
+          const envFile = path.join(dataDir, '.env');
+          const parsed = dotenv.parse(fs.readFileSync(envFile));
+
+          const imageRoot = parsed.WINTHOR_IMAGE_ROOT;
+
+          if (!imageRoot || !path.isAbsolute(imageRoot)) {
+            throw new Error(
+              'WINTHOR_IMAGE_ROOT deve ser absoluto'
+            );
+          }
+
+          let resolved;
+
+          try {
+            resolved = fs.realpathSync(imageRoot);
+
+            if (!fs.statSync(resolved).isDirectory()) {
+              throw new Error('Caminho nao e diretorio');
+            }
+
+            fs.accessSync(
+              resolved,
+              fs.constants.R_OK | fs.constants.X_OK,
+            );
+          } catch {
+            throw new Error(
+              'Diretorio de imagens indisponivel ou sem acesso'
+            );
+          }
+
+          const releases = path.resolve(appRoot, 'releases');
+          const relative = path.relative(releases, resolved);
+
+          const insideReleases =
+            relative === '' ||
+            (
+              relative !== '..' &&
+              !relative.startsWith(`..${path.sep}`) &&
+              !path.isAbsolute(relative)
+            );
+
+          if (insideReleases) {
+            throw new Error(
+              'Imagens nao podem ficar dentro das releases'
+            );
+          }
+
+          console.log('Diretorio de imagens validado');
+          NODE
+
+      - name: Start release via PM2
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'DEPLOY_ATTEMPTED=true\n' >> "$GITHUB_ENV"
+          pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
+          cd "$RELEASE_DIR"
+          env -u RUNNER_TRACKING_ID pm2 start ecosystem.config.js --env production
+
+      - name: Verify process, port and Oracle health
+        shell: bash
+        run: |
+          set -euo pipefail
+          pid="$(pm2 pid "$APP_NAME")"
+          test -n "$pid"
+          test "$pid" != '0'
+          actual_cwd="$(readlink -f "/proc/$pid/cwd")"
+          if [ "$actual_cwd" != "$RELEASE_DIR" ]; then
+            echo "ERRO: diretorio da aplicacao inesperado: $actual_cwd"
+            exit 1
+          fi
+
+          healthy=false
+          for attempt in $(seq 1 12); do
+            if curl -fsS --max-time 5 "http://127.0.0.1:${APP_PORT}/health/live" >/dev/null 2>&1 && \
+               curl -fsS --max-time 5 "http://127.0.0.1:${APP_PORT}/health/oracle" >/dev/null 2>&1; then
+              healthy=true
+              break
+            fi
+            echo "Aguardando health e Oracle: tentativa $attempt/12"
+            sleep 5
+          done
+          if [ "$healthy" != 'true' ]; then
+            echo 'ERRO: health da API ou conexao Oracle nao aprovada'
+            exit 1
+          fi
+          echo 'API e Oracle saudaveis na porta 3008'
+
+      - name: Atomically activate release
+        shell: bash
+        run: |
+          set -euo pipefail
+          temp_link="$APP_ROOT/.current.${GITHUB_RUN_ID}.tmp"
+          test ! -e "$temp_link"
+          test ! -L "$temp_link"
+          ln -s "$RELEASE_DIR" "$temp_link"
+          mv -Tf "$temp_link" "$APP_ROOT/current"
+          test "$(readlink -f "$APP_ROOT/current")" = "$RELEASE_DIR"
+          pm2 save
+          echo "Release ativa: $RELEASE_DIR ($CI_SHA)"
+
+      - name: Roll back after failed activation
+        if: failure() && env.DEPLOY_ATTEMPTED == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
+
+          if [ -n "${PREVIOUS_RELEASE:-}" ]; then
+            test -f "$PREVIOUS_RELEASE/dist/main.js"
+            test -f "$PREVIOUS_RELEASE/ecosystem.config.js"
+            test -f "$PREVIOUS_RELEASE/.env"
+            cd "$PREVIOUS_RELEASE"
+            env -u RUNNER_TRACKING_ID pm2 start ecosystem.config.js --env production
+            pid="$(pm2 pid "$APP_NAME")"
+            test -n "$pid"
+            test "$pid" != '0'
+            test "$(readlink -f "/proc/$pid/cwd")" = "$PREVIOUS_RELEASE"
+            curl -fsS --max-time 10 "http://127.0.0.1:${APP_PORT}/health/live" >/dev/null
+            curl -fsS --max-time 10 "http://127.0.0.1:${APP_PORT}/health/oracle" >/dev/null
+            temp_link="$APP_ROOT/.rollback.${GITHUB_RUN_ID}.tmp"
+            ln -s "$PREVIOUS_RELEASE" "$temp_link"
+            mv -Tf "$temp_link" "$APP_ROOT/current"
+            pm2 save
+            echo "Rollback executado: $PREVIOUS_RELEASE"
+          else
+            if [ -L "$APP_ROOT/current" ] && \
+               [ "$(readlink -f "$APP_ROOT/current")" = "$RELEASE_DIR" ]; then
+              rm -f "$APP_ROOT/current"
+            fi
+            pm2 save
+            echo 'Primeira implantacao falhou; somente a nova API foi removida'
+          fi
