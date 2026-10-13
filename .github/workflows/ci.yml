@@ -1,0 +1,66 @@
+name: CI - Commercial Proposal API
+
+on:
+  push:
+    branches:
+      - dev
+      - staging
+      - master
+
+  pull_request:
+    branches:
+      - dev
+      - staging
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Validate and Build API
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.19.0'
+          cache: npm
+
+      - name: Runtime versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Run lint without fixes
+        run: |
+          ./node_modules/.bin/eslint \
+            'src/**/*.ts' \
+            'test/**/*.ts'
+
+      - name: Run unit tests
+        run: npm test -- --runInBand
+
+      - name: Run E2E tests
+        run: npm run test:e2e -- --runInBand
+
+      - name: Build application
+        run: npm run build
+
+      - name: Validate production build
+        run: |
+          test -f dist/main.js
+          node --check dist/main.js
